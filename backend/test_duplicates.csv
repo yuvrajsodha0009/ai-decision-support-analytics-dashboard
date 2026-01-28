@@ -1,0 +1,11 @@
+CUSTOMERID,NAME,AGE,EMAIL,CITY,PURCHASEAMOUNT,PURCHASEDATE
+101,John Doe,25,john@gmail.com,New York,250,2024-01-15
+102,Jane Smith,28,jane_smith@gmail.com,Los Angeles,300,2024-01-16
+103,Robert Brown,30,robert@gmail.com,New York,150,2024-01-17
+104,Alice Johnson,27,alice@gmail.com,Chicago,200,2024-01-18
+101,John Doe,25,john@gmail.com,New York,250,2024-01-15
+106,Michael Lee,forty,michael@gmail.com,San Francisco,400,2024-01-19
+107,David Martinez,22,unknown@gmail.com,Boston,180,2024-01-20
+108,Emily Davis,29,emily@gmail.com,New York,220,2024-01-21
+109,Chris Wilson,31,chris@gmail.com,New York,175,2024-01-22
+102,Jane Smith,28,jane_smith@gmail.com,Los Angeles,300,2024-01-16
