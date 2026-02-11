@@ -64,7 +64,7 @@ const SalesPage = () => {
   };
 
   const calculateSummary = (data) => {
-    const total = data.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const total = data.reduce((sum, item) => sum + (item.revenue || 0), 0);
     const avgOrder = data.length > 0 ? total / data.length : 0;
     const productCounts = {};
 
@@ -76,7 +76,7 @@ const SalesPage = () => {
 
     const topProduct = Object.keys(productCounts).reduce(
       (a, b) => (productCounts[a] > productCounts[b] ? a : b),
-      Object.keys(productCounts)[0] || "N/A"
+      Object.keys(productCounts)[0] || "N/A",
     );
 
     setSummary({
@@ -90,7 +90,7 @@ const SalesPage = () => {
   // Aggregate sales by product and take top 10 by revenue
   const aggregatedByProduct = salesData.reduce((acc, item) => {
     const name = item.product || "Unknown";
-    const amount = Number(item.amount || 0) || 0;
+    const amount = Number(item.revenue || 0) || 0;
     const quantity = Number(item.quantity || 0) || 0;
     const existing = acc.find((c) => c.name === name);
     if (existing) {
@@ -107,12 +107,12 @@ const SalesPage = () => {
     .slice(0, 10);
 
   const categoryData = salesData.reduce((acc, item) => {
-    const category = item.category || "Other";
+    const category = item.channel || "Other";
     const existing = acc.find((c) => c.name === category);
     if (existing) {
-      existing.value += item.amount || 0;
+      existing.value += item.revenue || 0;
     } else {
-      acc.push({ name: category, value: item.amount || 0 });
+      acc.push({ name: category, value: item.revenue || 0 });
     }
     return acc;
   }, []);
@@ -288,7 +288,7 @@ const SalesPage = () => {
               <tr className="text-left text-xs uppercase text-slate-600 font-semibold">
                 <th className="p-4">#</th>
                 <th className="p-4">Product</th>
-                <th className="p-4">Category</th>
+                <th className="p-4">Channel</th>
                 <th className="p-4">Quantity</th>
                 <th className="p-4">Amount</th>
                 <th className="p-4">Date</th>
@@ -305,11 +305,11 @@ const SalesPage = () => {
                     {item.product || "N/A"}
                   </td>
                   <td className="p-4 text-slate-600">
-                    {item.category || "N/A"}
+                    {item.channel || "N/A"}
                   </td>
                   <td className="p-4 text-slate-600">{item.quantity || 0}</td>
                   <td className="p-4 text-green-600 font-semibold">
-                    {formatCurrency(item.amount || 0)}
+                    {formatCurrency(item.revenue || 0)}
                   </td>
                   <td className="p-4 text-slate-600 text-sm">
                     {item.date

@@ -43,6 +43,9 @@ exports.register = async (req, res) => {
       password: hash
     });
 
+    // Log activity
+    await logActivity('System', 'User Registered', 'User', `New user ${trimmedName} (${trimmedEmail}) registered`, 'success', req);
+
     // Generate token
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
@@ -161,6 +164,10 @@ exports.deleteUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
+
+    // Log activity
+    await logActivity('Admin', 'User Deleted', 'User', `User ${user.name} (${user.email}) was deleted`, 'warning', req);
+
     res.json({ message: 'User deleted successfully' });
   } catch (err) {
     console.error('Delete user error:', err);
@@ -193,7 +200,9 @@ exports.updateUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    res.json(user);
+
+    // Log activity
+    await logActivity('Admin', 'User Updated', 'User', `User ${user.name} (${user.email}) was updated`, 'success', req);
   } catch (err) {
     console.error('Update user error:', err);
     res.status(500).json({ message: 'Failed to update user' });

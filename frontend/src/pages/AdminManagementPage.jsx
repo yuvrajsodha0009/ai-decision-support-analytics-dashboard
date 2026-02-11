@@ -41,6 +41,18 @@ const AdminManagementPage = () => {
 
   const headers = { Authorization: `Bearer ${localStorage.getItem("token")}` };
 
+  // Helper function to format large numbers
+  const formatLargeNumber = (num) => {
+    if (num >= 1000000000) {
+      return (num / 1000000000).toFixed(1) + "B";
+    } else if (num >= 1000000) {
+      return (num / 1000000).toFixed(1) + "M";
+    } else if (num >= 1000) {
+      return (num / 1000).toFixed(1) + "K";
+    }
+    return num.toFixed(0);
+  };
+
   useEffect(() => {
     fetchAllData();
   }, []);
@@ -48,14 +60,49 @@ const AdminManagementPage = () => {
   const fetchAllData = async () => {
     try {
       setLoading(true);
-      await Promise.all([
-        fetchUsers(),
-        fetchDatasets(),
-        fetchActivities(),
-        fetchSystemStats(),
-      ]);
+      const usersRes = await axios.get("http://localhost:5000/api/auth/users", {
+        headers,
+      });
+      const usersList = Array.isArray(usersRes.data)
+        ? usersRes.data
+        : usersRes.data?.users || [];
+      setUsers(usersList);
+
+      const datasetsRes = await axios.get(
+        "http://localhost:5000/api/data/all",
+        {
+          headers,
+        },
+      );
+      const datasetsList = datasetsRes.data || [];
+      setDatasets(datasetsList);
+
+      // Fetch activities
+      try {
+        const activitiesRes = await axios.get(
+          "http://localhost:5000/api/activity/all",
+          { headers },
+        );
+        setActivities(activitiesRes.data || []);
+      } catch (error) {
+        console.error("Failed to fetch activities", error);
+      }
+
+      // Calculate stats based on fetched data
+      const totalValue = datasetsList.reduce(
+        (sum, d) => sum + (d.value || 0),
+        0,
+      );
+      setSystemStats({
+        totalUsers: usersList.length,
+        totalDatasets: datasetsList.length,
+        totalValue: totalValue,
+        activeUsers: Math.ceil(usersList.length * 0.7),
+      });
     } catch (error) {
       console.error("Failed to fetch data", error);
+      setMessage("Failed to load data");
+      setMessageType("error");
     } finally {
       setLoading(false);
     }
@@ -100,23 +147,6 @@ const AdminManagementPage = () => {
     }
   };
 
-  const fetchSystemStats = async () => {
-    try {
-      const userCount = users.length;
-      const datasetCount = datasets.length;
-      const totalValue = datasets.reduce((sum, d) => sum + (d.value || 0), 0);
-
-      setSystemStats({
-        totalUsers: userCount,
-        totalDatasets: datasetCount,
-        totalValue: totalValue,
-        activeUsers: Math.ceil(userCount * 0.7),
-      });
-    } catch (error) {
-      console.error("Failed to fetch system stats", error);
-    }
-  };
-
   // User Management
   const handleSaveUser = async (e) => {
     e.preventDefault();
@@ -147,7 +177,7 @@ const AdminManagementPage = () => {
         await axios.put(
           `http://localhost:5000/api/auth/users/${editingUser._id}`,
           updateData,
-          { headers }
+          { headers },
         );
         setMessage("User updated successfully");
       } else {
@@ -162,7 +192,7 @@ const AdminManagementPage = () => {
           },
           {
             headers,
-          }
+          },
         );
         console.log("User created:", response.data);
         setMessage("User created successfully");
@@ -209,7 +239,7 @@ const AdminManagementPage = () => {
         `http://localhost:5000/api/auth/users/${confirmAction.id}`,
         {
           headers,
-        }
+        },
       );
       setMessage("User deleted successfully");
       setMessageType("success");
@@ -265,7 +295,7 @@ const AdminManagementPage = () => {
       await axios.put(
         `http://localhost:5000/api/data/${datasetId}`,
         { value: parseFloat(newValue) },
-        { headers }
+        { headers },
       );
       setMessage("Dataset updated successfully");
       setMessageType("success");
@@ -281,13 +311,13 @@ const AdminManagementPage = () => {
   const filteredUsers = users.filter(
     (u) =>
       u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase()))
+      (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
   const filteredDatasets = datasets.filter(
     (d) =>
       (d.title && d.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (d.batchId && d.batchId.toLowerCase().includes(searchTerm.toLowerCase()))
+      (d.batchId && d.batchId.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
   return (
@@ -389,7 +419,7 @@ const AdminManagementPage = () => {
                   Total Value
                 </p>
                 <p className="text-3xl font-bold text-slate-900 mt-2">
-                  ${(systemStats.totalValue || 0).toFixed(2)}
+                  ₹{formatLargeNumber((systemStats.totalValue || 0) * 83)}
                 </p>
               </div>
               <Shield className="text-purple-500" size={40} />
@@ -561,7 +591,7 @@ const AdminManagementPage = () => {
                         {dataset.title || "N/A"}
                       </td>
                       <td className="p-4 text-green-600 font-semibold">
-                        ${(dataset.value || 0).toFixed(2)}
+                        ₹{formatLargeNumber((dataset.value || 0) * 83)}
                       </td>
                       <td className="p-4 text-slate-600 text-sm">
                         {dataset.batchId
@@ -586,7 +616,7 @@ const AdminManagementPage = () => {
                             onClick={() =>
                               handleDeleteDataset(
                                 dataset._id,
-                                dataset.name || "Dataset"
+                                dataset.name || "Dataset",
                               )
                             }
                             className="px-3 py-1.5 bg-gradient-to-r from-rose-500 to-red-500 text-white text-xs rounded-lg shadow-md hover:shadow-lg hover:scale-105 transition-all flex items-center gap-1"

@@ -24,6 +24,8 @@ import {
   ChevronDown,
 } from "lucide-react";
 
+const API_BASE = "http://localhost:5000/api";
+
 // Currency formatter
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-IN", {
@@ -56,7 +58,7 @@ const Dashboard = () => {
 
   const fetchSales = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/sales");
+      const res = await axios.get(`${API_BASE}/sales`);
       setSales(res.data);
     } catch (err) {
       console.error("Failed to load sales data", err);
@@ -65,9 +67,7 @@ const Dashboard = () => {
 
   const fetchTotalRevenue = async () => {
     try {
-      const res = await axios.get(
-        "http://localhost:5000/api/sales/total-revenue"
-      );
+      const res = await axios.get(`${API_BASE}/sales/total-revenue`);
       setTotalRevenue(res.data.totalRevenue);
     } catch (err) {
       console.error("Failed to load total revenue", err);
@@ -77,7 +77,7 @@ const Dashboard = () => {
   // ✅ DSS API
   const fetchInsights = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/sales/insights");
+      const res = await axios.get(`${API_BASE}/sales/insights`);
       setInsights(res.data);
     } catch (err) {
       console.error("Failed to load insights");
@@ -120,7 +120,7 @@ const Dashboard = () => {
 
   const viewHistory = async (id) => {
     const res = await axios.get(
-      `http://localhost:5000/api/sales/${id}/history`
+      `http://localhost:5000/api/sales/${id}/history`,
     );
     setHistory(res.data);
     setShowHistory(true);
@@ -128,7 +128,7 @@ const Dashboard = () => {
 
   const rollbackRecord = async (id, version) => {
     await axios.post(
-      `http://localhost:5000/api/sales/${id}/rollback/${version}`
+      `http://localhost:5000/api/sales/${id}/rollback/${version}`,
     );
     fetchSales();
     fetchTotalRevenue();
