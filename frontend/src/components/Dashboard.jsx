@@ -160,30 +160,30 @@ const Dashboard = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-900 p-8">
+    <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-main)] p-8">
       {/* Header Section */}
       <div className="mb-8">
         <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-400 to-blue-400 bg-clip-text text-transparent mb-2">
           Sales Dashboard
         </h1>
-        <p className="text-slate-400">
+        <p className="text-slate-500 dark:text-slate-300">
           Monitor your sales performance and key metrics
         </p>
       </div>
 
       {/* Stats Cards with Enhanced Design */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="group relative bg-white p-6 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-slate-100 overflow-hidden animate-fadeIn stagger-1">
+        <div className="group relative bg-[var(--bg-surface)] text-[var(--text-main)] p-6 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-[var(--border-soft)] overflow-hidden animate-fadeIn stagger-1">
           <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500"></div>
           <div className="relative flex items-center gap-4">
             <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 p-4 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
               <IndianRupee className="text-white" size={24} />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-slate-500 mb-1">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-300 mb-1">
                 Total Revenue
               </p>
-              <h2 className="text-2xl font-bold text-slate-900">
+              <h2 className="text-2xl font-bold text-[var(--text-main)]">
                 {formatCurrency(totalRevenue)}
               </h2>
               <div className="flex items-center gap-1 mt-2 text-green-600 text-xs font-semibold">
@@ -194,17 +194,17 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="group relative bg-white p-6 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-slate-100 overflow-hidden animate-fadeIn stagger-2">
+        <div className="group relative bg-[var(--bg-surface)] text-[var(--text-main)] p-6 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-[var(--border-soft)] overflow-hidden animate-fadeIn stagger-2">
           <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500"></div>
           <div className="relative flex items-center gap-4">
             <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-4 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
               <ShoppingBag className="text-white" size={24} />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-slate-500 mb-1">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-300 mb-1">
                 Units Sold
               </p>
-              <h2 className="text-2xl font-bold text-slate-900">
+              <h2 className="text-2xl font-bold text-[var(--text-main)]">
                 {totalQuantity}
               </h2>
               <div className="flex items-center gap-1 mt-2 text-blue-600 text-xs font-semibold">
@@ -215,17 +215,17 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="group relative bg-white p-6 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-slate-100 overflow-hidden animate-fadeIn stagger-3">
+        <div className="group relative bg-[var(--bg-surface)] text-[var(--text-main)] p-6 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-[var(--border-soft)] overflow-hidden animate-fadeIn stagger-3">
           <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500"></div>
           <div className="relative flex items-center gap-4">
             <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 p-4 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
               <Package className="text-white" size={24} />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-slate-500 mb-1">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-300 mb-1">
                 Active Products
               </p>
-              <h2 className="text-2xl font-bold text-slate-900">
+              <h2 className="text-2xl font-bold text-[var(--text-main)]">
                 {activeProducts}
               </h2>
               <div className="flex items-center gap-1 mt-2 text-emerald-600 text-xs font-semibold">
@@ -238,13 +238,13 @@ const Dashboard = () => {
       </div>
 
       {/* Chart Section with Enhanced Design */}
-      <div className="bg-white p-8 rounded-2xl shadow-xl mb-8 border border-slate-100 animate-fadeIn stagger-4">
+      <div className="bg-[var(--bg-surface)] text-[var(--text-main)] p-8 rounded-2xl shadow-xl mb-8 border border-[var(--border-soft)] animate-fadeIn stagger-4">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-1">
+            <h2 className="text-2xl font-bold text-[var(--text-main)] mb-1">
               Revenue by Product
             </h2>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-slate-500 dark:text-slate-300">
               Performance breakdown across all products
             </p>
           </div>
@@ -401,28 +401,28 @@ const Dashboard = () => {
       )}
 
       {/* Enhanced Table */}
-      <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100 animate-fadeIn stagger-1">
+      <div className="table-shell p-8 animate-fadeIn stagger-1">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-slate-900 mb-1">
+          <h2 className="text-2xl font-bold text-[var(--text-main)] mb-1">
             Sales Records
           </h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-300">
             Manage and track all sales transactions
           </p>
         </div>
         <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
           <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-indigo-50 text-left border-b-2 border-indigo-200">
-                <th className="p-4 font-semibold text-slate-700">Product</th>
-                <th className="p-4 text-right font-semibold text-slate-700">
+            <thead className="table-head">
+              <tr className="text-left">
+                <th className="p-4 font-semibold">Product</th>
+                <th className="p-4 text-right font-semibold">
                   Quantity
                 </th>
-                <th className="p-4 text-right font-semibold text-slate-700">
+                <th className="p-4 text-right font-semibold">
                   Revenue
                 </th>
-                <th className="p-4 font-semibold text-slate-700">Version</th>
-                <th className="p-4 w-48 font-semibold text-slate-700">
+                <th className="p-4 font-semibold">Version</th>
+                <th className="p-4 w-48 font-semibold">
                   Actions
                 </th>
               </tr>
@@ -431,9 +431,9 @@ const Dashboard = () => {
               {sales.map((item, index) => (
                 <tr
                   key={item._id || index}
-                  className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150"
+                  className="table-row table-row-hover transition-colors duration-150"
                 >
-                  <td className="p-4 font-medium text-slate-900">
+                  <td className="p-4 font-medium">
                     {editingRecord === item._id ? (
                       <input
                         type="text"
@@ -441,13 +441,13 @@ const Dashboard = () => {
                         onChange={(e) =>
                           setEditForm({ ...editForm, product: e.target.value })
                         }
-                        className="border-2 border-indigo-300 rounded-lg p-2 w-full focus:border-indigo-500 focus:outline-none transition-colors"
+                        className="form-control border-2 border-indigo-300 rounded-lg p-2 w-full transition-colors"
                       />
                     ) : (
                       item.product
                     )}
                   </td>
-                  <td className="p-4 text-right text-slate-700">
+                  <td className="p-4 text-right">
                     {editingRecord === item._id ? (
                       <input
                         type="number"
@@ -458,13 +458,13 @@ const Dashboard = () => {
                             quantity: parseInt(e.target.value) || 0,
                           })
                         }
-                        className="border-2 border-indigo-300 rounded-lg p-2 w-full text-right focus:border-indigo-500 focus:outline-none transition-colors"
+                        className="form-control border-2 border-indigo-300 rounded-lg p-2 w-full text-right transition-colors"
                       />
                     ) : (
                       item.quantity
                     )}
                   </td>
-                  <td className="p-4 text-right font-semibold text-slate-900">
+                  <td className="p-4 text-right font-semibold">
                     {editingRecord === item._id ? (
                       <input
                         type="number"
@@ -476,14 +476,14 @@ const Dashboard = () => {
                             revenue: parseFloat(e.target.value) || 0,
                           })
                         }
-                        className="border-2 border-indigo-300 rounded-lg p-2 w-full text-right focus:border-indigo-500 focus:outline-none transition-colors"
+                        className="form-control border-2 border-indigo-300 rounded-lg p-2 w-full text-right transition-colors"
                       />
                     ) : (
                       formatCurrency(item.revenue)
                     )}
                   </td>
                   <td className="p-4">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">
+                    <span className="badge-soft">
                       v{item.version}
                     </span>
                   </td>
@@ -514,7 +514,7 @@ const Dashboard = () => {
                               changeReason: e.target.value,
                             })
                           }
-                          className="border-2 border-slate-300 rounded-lg p-2 text-sm focus:border-indigo-500 focus:outline-none transition-colors"
+                          className="form-control border-2 border-slate-300 rounded-lg p-2 text-sm transition-colors"
                         />
                       </div>
                     ) : (
@@ -552,8 +552,8 @@ const Dashboard = () => {
 
       {/* Enhanced History Modal */}
       {showHistory && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-8 rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-surface)] text-[var(--text-main)] p-8 rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-[var(--border-soft)]">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-purple-100 rounded-lg">
@@ -574,30 +574,30 @@ const Dashboard = () => {
             </div>
             <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
               <table className="w-full border-collapse">
-                <thead className="bg-gradient-to-r from-slate-50 to-purple-50">
-                  <tr className="border-b-2 border-purple-200">
-                    <th className="p-3 text-left font-semibold text-slate-700">
+                <thead className="table-head">
+                  <tr>
+                    <th className="p-3 text-left font-semibold">
                       Version
                     </th>
-                    <th className="p-3 text-left font-semibold text-slate-700">
+                    <th className="p-3 text-left font-semibold">
                       Product
                     </th>
-                    <th className="p-3 text-right font-semibold text-slate-700">
+                    <th className="p-3 text-right font-semibold">
                       Quantity
                     </th>
-                    <th className="p-3 text-right font-semibold text-slate-700">
+                    <th className="p-3 text-right font-semibold">
                       Revenue
                     </th>
-                    <th className="p-3 text-left font-semibold text-slate-700">
+                    <th className="p-3 text-left font-semibold">
                       Changed At
                     </th>
-                    <th className="p-3 text-left font-semibold text-slate-700">
+                    <th className="p-3 text-left font-semibold">
                       Change Type
                     </th>
-                    <th className="p-3 text-left font-semibold text-slate-700">
+                    <th className="p-3 text-left font-semibold">
                       Reason
                     </th>
-                    <th className="p-3 w-24 text-left font-semibold text-slate-700">
+                    <th className="p-3 w-24 text-left font-semibold">
                       Actions
                     </th>
                   </tr>
@@ -606,31 +606,31 @@ const Dashboard = () => {
                   {history.map((h) => (
                     <tr
                       key={h._id}
-                      className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                      className="table-row table-row-hover transition-colors"
                     >
                       <td className="p-3">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+                        <span className="badge-soft">
                           v{h.version}
                         </span>
                       </td>
-                      <td className="p-3 font-medium text-slate-900">
+                      <td className="p-3 font-medium">
                         {h.product}
                       </td>
-                      <td className="p-3 text-right text-slate-700">
+                      <td className="p-3 text-right">
                         {h.quantity}
                       </td>
-                      <td className="p-3 text-right font-semibold text-slate-900">
+                      <td className="p-3 text-right font-semibold">
                         {formatCurrency(h.revenue)}
                       </td>
-                      <td className="p-3 text-sm text-slate-600">
+                      <td className="p-3 text-sm text-slate-600 dark:text-slate-300">
                         {new Date(h.createdAt).toLocaleString()}
                       </td>
                       <td className="p-3">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                        <span className="badge-soft">
                           {h.changeType}
                         </span>
                       </td>
-                      <td className="p-3 text-sm text-slate-600">
+                      <td className="p-3 text-sm text-slate-600 dark:text-slate-300">
                         {h.changeReason}
                       </td>
                       <td className="p-3">

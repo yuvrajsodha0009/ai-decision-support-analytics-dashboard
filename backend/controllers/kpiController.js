@@ -2,6 +2,7 @@ const KPI = require("../models/KPI");
 const Data = require("../models/Data");
 const ApiData = require("../models/ApiData");
 const Sales = require("../models/Sales");
+const logActivity = require("../utils/logActivity");
 
 /* ================= CREATE KPI ================= */
 exports.createKPI = async (req, res) => {
@@ -16,6 +17,15 @@ exports.createKPI = async (req, res) => {
       batchId: source === "database" || batchId === "ALL" ? null : batchId,
       createdBy: req.userId
     });
+
+    await logActivity(
+      req.userId ? "User" : "System",
+      "KPI Created",
+      "KPI",
+      `Created KPI "${name}" (${operation} on ${field})`,
+      "success",
+      req
+    );
 
     res.json(kpi);
   } catch (error) {
@@ -143,10 +153,21 @@ exports.deleteKPI = async (req, res) => {
   try {
     const { id } = req.params;
 
-    await KPI.findOneAndDelete({
+    const deleted = await KPI.findOneAndDelete({
       _id: id,
       createdBy: req.userId
     });
+
+    if (deleted) {
+      await logActivity(
+        req.userId ? "User" : "System",
+        "KPI Deleted",
+        "KPI",
+        `Deleted KPI "${deleted.name}"`,
+        "warning",
+        req
+      );
+    }
 
     res.json({ message: "KPI deleted successfully" });
   } catch (error) {

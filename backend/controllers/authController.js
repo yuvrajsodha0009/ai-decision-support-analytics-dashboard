@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const logActivity = require('../utils/logActivity');
 
 // Email validation regex
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -51,7 +52,7 @@ exports.register = async (req, res) => {
 
     res.status(201).json({
       token,
-      user: { id: user._id, name: user.name, email: user.email }
+      user: { id: user._id, name: user.name, email: user.email, role: user.role }
     });
   } catch (err) {
     console.error('Registration error:', err);
@@ -61,7 +62,7 @@ exports.register = async (req, res) => {
 
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role: requestedRole } = req.body;
 
     // Trim inputs
     const trimmedEmail = email?.trim().toLowerCase();
@@ -69,10 +70,26 @@ exports.login = async (req, res) => {
 
     // Validation
     if (!trimmedEmail || !trimmedPassword) {
+      await logActivity(
+        trimmedEmail || "Unknown",
+        "Login Failed",
+        "Auth",
+        "Missing email or password",
+        "warning",
+        req
+      );
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
     if (!emailRegex.test(trimmedEmail)) {
+      await logActivity(
+        trimmedEmail,
+        "Login Failed",
+        "Auth",
+        "Invalid email format",
+        "warning",
+        req
+      );
       return res.status(400).json({ message: 'Invalid email format' });
     }
 
@@ -84,6 +101,18 @@ exports.login = async (req, res) => {
     };
 
     if (trimmedEmail === defaultAdmin.email && trimmedPassword === defaultAdmin.password) {
+      if (requestedRole === "user") {
+        await logActivity(
+          trimmedEmail,
+          "User Login Denied",
+          "Auth",
+          "Admins must login from the admin panel",
+          "warning",
+          req
+        );
+        return res.status(403).json({ message: "Admins must login from the admin panel" });
+      }
+
       let adminUser = await User.findOne({ email: trimmedEmail });
 
       if (!adminUser) {
@@ -91,42 +120,104 @@ exports.login = async (req, res) => {
         adminUser = await User.create({
           name: defaultAdmin.name,
           email: trimmedEmail,
-          password: hash
+          password: hash,
+          role: "admin"
         });
       } else {
         const matches = await bcrypt.compare(trimmedPassword, adminUser.password);
         if (!matches) {
           adminUser.password = await bcrypt.hash(defaultAdmin.password, 10);
-          await adminUser.save();
         }
+        if (adminUser.role !== "admin") {
+          adminUser.role = "admin";
+        }
+        await adminUser.save();
       }
 
       const token = jwt.sign({ id: adminUser._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
+      await logActivity(
+        adminUser.name || "Admin",
+        "Admin Login",
+        "Auth",
+        `Admin ${adminUser.email} logged in`,
+        "success",
+        req
+      );
+
       return res.json({
         token,
-        user: { id: adminUser._id, name: adminUser.name, email: adminUser.email }
+        user: { id: adminUser._id, name: adminUser.name, email: adminUser.email, role: adminUser.role }
       });
     }
 
     // Find user
     const user = await User.findOne({ email: trimmedEmail });
     if (!user) {
+      await logActivity(
+        trimmedEmail,
+        "Login Failed",
+        "Auth",
+        "Invalid credentials",
+        "error",
+        req
+      );
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
     // Check password
     const isValid = await bcrypt.compare(trimmedPassword, user.password);
     if (!isValid) {
+      await logActivity(
+        trimmedEmail,
+        "Login Failed",
+        "Auth",
+        "Invalid credentials",
+        "error",
+        req
+      );
       return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    if (requestedRole === "admin" && user.role !== "admin") {
+      await logActivity(
+        trimmedEmail,
+        "Admin Login Denied",
+        "Auth",
+        "Only admins can login from the admin panel",
+        "warning",
+        req
+      );
+      return res.status(403).json({ message: "Only admins can login from the admin panel" });
+    }
+
+    if (requestedRole === "user" && user.role === "admin") {
+      await logActivity(
+        trimmedEmail,
+        "User Login Denied",
+        "Auth",
+        "Admins must login from the admin panel",
+        "warning",
+        req
+      );
+      return res.status(403).json({ message: "Admins must login from the admin panel" });
     }
 
     // Generate token
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
+    await logActivity(
+      user.name || trimmedEmail,
+      "User Login",
+      "Auth",
+      `User ${user.email} logged in`,
+      "success",
+      req
+    );
+
     res.json({
       token,
-      user: { id: user._id, name: user.name, email: user.email }
+      user: { id: user._id, name: user.name, email: user.email, role: user.role }
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -166,7 +257,7 @@ exports.deleteUser = async (req, res) => {
     }
 
     // Log activity
-    await logActivity('Admin', 'User Deleted', 'User', `User ${user.name} (${user.email}) was deleted`, 'warning', req);
+    await logActivity('User', 'User Deleted', 'User', `User ${user.name} (${user.email}) was deleted`, 'warning', req);
 
     res.json({ message: 'User deleted successfully' });
   } catch (err) {
@@ -202,9 +293,54 @@ exports.updateUser = async (req, res) => {
     }
 
     // Log activity
-    await logActivity('Admin', 'User Updated', 'User', `User ${user.name} (${user.email}) was updated`, 'success', req);
+    await logActivity('User', 'User Updated', 'User', `User ${user.name} (${user.email}) was updated`, 'success', req);
+
+    res.json({ message: 'User updated successfully', user });
   } catch (err) {
     console.error('Update user error:', err);
     res.status(500).json({ message: 'Failed to update user' });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    const trimmedEmail = email?.trim().toLowerCase();
+    const trimmedPassword = newPassword?.trim();
+
+    if (!trimmedEmail || !trimmedPassword) {
+      return res.status(400).json({ message: 'Email and new password are required' });
+    }
+
+    if (!emailRegex.test(trimmedEmail)) {
+      return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    if (trimmedPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
+
+    const user = await User.findOne({ email: trimmedEmail });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.password = await bcrypt.hash(trimmedPassword, 10);
+    await user.save();
+
+    await logActivity(
+      user.name || trimmedEmail,
+      'Password Reset',
+      'Auth',
+      `Password reset for ${user.email}`,
+      'warning',
+      req
+    );
+
+    res.json({ message: 'Password reset successful' });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ message: 'Failed to reset password' });
   }
 };

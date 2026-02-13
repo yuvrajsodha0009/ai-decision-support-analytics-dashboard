@@ -10,6 +10,7 @@ import ActivityLogPage from "./pages/ActivityLogPage";
 import DataQualityPage from "./pages/DataQualityPage";
 import SalesPage from "./pages/SalesPage";
 import AdminManagementPage from "./pages/AdminManagementPage";
+import SettingsPage from "./pages/SettingsPage";
 import Auth from "./pages/Auth";
 import Landing from "./pages/Landing";
 import PrivateRoute from "./components/PrivateRoute";
@@ -27,6 +28,15 @@ function App() {
             element={
               <PrivateRoute>
                 <DashboardPage />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/settings"
+            element={
+              <PrivateRoute>
+                <SettingsPage />
               </PrivateRoute>
             }
           />

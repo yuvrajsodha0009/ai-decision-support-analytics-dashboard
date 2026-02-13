@@ -1,31 +1,20 @@
-import { NavLink, useNavigate } from "react-router-dom";
-import { useState } from "react";
-import LogoutModal from "./LogoutModal";
-import { toast } from "react-hot-toast";
-import { LayoutDashboard, Upload, Database, Target, Sparkles, FileText, LogOut, Activity, Zap, TrendingUp, Users, Settings } from "lucide-react";
+import { NavLink } from "react-router-dom";
+import { LayoutDashboard, Upload, Database, Target, Sparkles, FileText, Activity, Zap, TrendingUp, Users, Settings } from "lucide-react";
+import ProfileDropdown from "./ProfileDropdown";
 
 const Sidebar = () => {
-  const navigate = useNavigate();
-  const [showLogout, setShowLogout] = useState(false);
   const role = localStorage.getItem("role") || "user";
-
-  const confirmLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("role");
-    toast.success("Logged out successfully");
-    navigate("/", { replace: true });
-  };
 
   const linkClass = ({ isActive }) =>
     `flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 ${
       isActive
-        ? "bg-gradient-to-r from-cyan-400/20 to-teal-500/20 text-white font-semibold border border-cyan-400/50 shadow-lg shadow-cyan-500/20"
-        : "text-slate-400 hover:bg-white/5 hover:text-white hover:translate-x-1 border border-transparent"
+        ? "bg-sky-100 text-slate-900 font-semibold border border-sky-200 shadow-md dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700"
+        : "text-slate-600 border border-transparent hover:bg-sky-100 hover:text-slate-900 hover:border-sky-200 hover:shadow-sm dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white dark:hover:border-slate-700"
     }`;
 
   return (
     <>
-      <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-gradient-to-b from-slate-950 via-black to-slate-900 text-white flex flex-col p-6 shadow-2xl shadow-black/50 border-r border-white/5 overflow-y-auto">
+      <aside className="app-sidebar fixed left-0 top-0 z-50 h-screen w-64 bg-[var(--bg-sidebar)] text-[var(--text-main)] flex flex-col p-6 shadow-2xl shadow-black/10 border-r border-[var(--border-soft)] overflow-y-auto scrollbar-hide">
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-lg">
@@ -36,7 +25,7 @@ const Sidebar = () => {
         </div>
 
         <nav className="flex-1 space-y-2">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2">Core Modules</div>
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-2 dark:text-slate-400">Core Modules</div>
           <NavLink to="/dashboard" className={linkClass}>
             <LayoutDashboard size={20} />
             <span>Dashboard</span>
@@ -85,20 +74,10 @@ const Sidebar = () => {
           )}
         </nav>
 
-        <button
-          onClick={() => setShowLogout(true)}
-          className="flex items-center gap-3 w-full px-4 py-3 mt-6 text-left text-sm text-red-300 hover:text-red-200 hover:bg-red-950/30 border border-red-900/50 rounded-xl transition-all duration-200"
-        >
-          <LogOut size={18} />
-          <span>Logout</span>
-        </button>
+        <div className="mt-auto pt-6">
+          <ProfileDropdown variant="sidebar" />
+        </div>
       </aside>
-
-      <LogoutModal
-        isOpen={showLogout}
-        onClose={() => setShowLogout(false)}
-        onConfirm={confirmLogout}
-      />
     </>
   );
 };

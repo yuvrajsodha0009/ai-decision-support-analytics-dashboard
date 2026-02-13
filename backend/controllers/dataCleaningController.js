@@ -13,6 +13,7 @@ const {
   generateQualityReport,
   normalizeNumericValues,
 } = require("../utils/dataValidation");
+const logActivity = require("../utils/logActivity");
 
 // In-memory storage for cleaned data (for demo)
 let cleanedDataStore = [];
@@ -86,6 +87,15 @@ const cleanBatchData = async (req, res) => {
     // Delete uploaded file
     fs.unlinkSync(filePath);
 
+    await logActivity(
+      req.userId ? "User" : "System",
+      "Data Cleaned",
+      "Data Cleaning",
+      `Processed ${rawData.length} rows, cleaned ${cleaned.length} rows`,
+      "success",
+      req
+    );
+
     res.json({
       success: true,
       data: cleaned,
@@ -127,6 +137,15 @@ const exportPDF = (req, res) => {
     });
 
     doc.end();
+
+    logActivity(
+      req.userId ? "User" : "System",
+      "Cleaned Data Exported",
+      "Data Cleaning",
+      "Exported cleaned data as PDF",
+      "success",
+      req
+    );
   } catch (error) {
     console.error("PDF export error:", error);
     res.status(500).json({ error: "Failed to export PDF" });
@@ -149,6 +168,15 @@ const exportExcel = (req, res) => {
       if (err) console.error(err);
       fs.unlinkSync(filePath); // Delete after download
     });
+
+    logActivity(
+      req.userId ? "User" : "System",
+      "Cleaned Data Exported",
+      "Data Cleaning",
+      "Exported cleaned data as Excel",
+      "success",
+      req
+    );
   } catch (error) {
     console.error("Excel export error:", error);
     res.status(500).json({ error: "Failed to export Excel" });

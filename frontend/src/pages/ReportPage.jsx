@@ -139,7 +139,7 @@ const ReportPage = () => {
   };
 
   return (
-    <div className="p-8 bg-slate-900 min-h-screen">
+    <div className="p-8 bg-[var(--bg-page)] text-[var(--text-main)] min-h-screen">
       {/* Professional Header with Logo */}
       <div className="mb-12 flex items-center gap-4">
         <div className="p-4 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl shadow-xl transform hover:scale-105 transition-transform duration-300">
@@ -149,7 +149,7 @@ const ReportPage = () => {
           <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">
             Reports & Analytics
           </h1>
-          <p className="text-slate-400 mt-1">
+          <p className="text-slate-500 dark:text-slate-300 mt-1">
             Export comprehensive reports of all your data and insights
           </p>
         </div>
@@ -160,46 +160,46 @@ const ReportPage = () => {
         {/* Overview Cards */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           {/* Card 1 */}
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-100 hover:shadow-xl transition-shadow">
+          <div className="surface-card p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow">
             <div className="p-3 bg-blue-100 rounded-lg mb-4 w-fit">
               <Zap className="text-blue-600" size={24} />
             </div>
-            <h3 className="font-semibold text-slate-800 mb-2">
+            <h3 className="font-semibold text-[var(--text-main)] mb-2">
               Real-Time Generation
             </h3>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
               Reports are generated instantly with your latest data
             </p>
           </div>
 
           {/* Card 2 */}
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-100 hover:shadow-xl transition-shadow">
+          <div className="surface-card p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow">
             <div className="p-3 bg-purple-100 rounded-lg mb-4 w-fit">
               <CheckCircle2 className="text-purple-600" size={24} />
             </div>
-            <h3 className="font-semibold text-slate-800 mb-2">Complete Data</h3>
-            <p className="text-sm text-slate-600">
+            <h3 className="font-semibold text-[var(--text-main)] mb-2">Complete Data</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
               All modules and metrics included in every export
             </p>
           </div>
 
           {/* Card 3 */}
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-100 hover:shadow-xl transition-shadow">
+          <div className="surface-card p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow">
             <div className="p-3 bg-indigo-100 rounded-lg mb-4 w-fit">
               <Clock className="text-indigo-600" size={24} />
             </div>
-            <h3 className="font-semibold text-slate-800 mb-2">
+            <h3 className="font-semibold text-[var(--text-main)] mb-2">
               Auto-Timestamped
             </h3>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
               Files automatically dated for easy organization
             </p>
           </div>
         </div>
 
         {/* Module Selection */}
-        <div className="mb-8 bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
-          <h2 className="text-2xl font-bold text-slate-900 mb-6">
+        <div className="surface-card mb-8 rounded-2xl shadow-lg p-8">
+          <h2 className="text-2xl font-bold text-[var(--text-main)] mb-6">
             Select Modules to Include
           </h2>
           <div className="grid md:grid-cols-2 gap-6">
@@ -209,8 +209,8 @@ const ReportPage = () => {
                 onClick={() => toggleModule(module.id)}
                 className={`p-5 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
                   selectedModules[module.id]
-                    ? "border-indigo-600 bg-indigo-50 shadow-md"
-                    : "border-slate-200 bg-slate-50 hover:border-indigo-300"
+                    ? "border-indigo-600 bg-indigo-50 dark:bg-slate-800 shadow-md"
+                    : "border-[var(--border-soft)] bg-[var(--bg-surface)] hover:border-indigo-300"
                 }`}
               >
                 <div className="flex items-start gap-4">
@@ -226,10 +226,10 @@ const ReportPage = () => {
                     )}
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-slate-900">
+                    <h3 className="font-semibold text-[var(--text-main)]">
                       {module.label}
                     </h3>
-                    <p className="text-sm text-slate-600 mt-1">
+                    <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
                       {module.description}
                     </p>
                   </div>
@@ -322,16 +322,16 @@ const ReportPage = () => {
         {/* Export Options */}
         <div className="grid md:grid-cols-2 gap-8 mb-8">
           {/* PDF Export Card */}
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group">
+          <div className="surface-card rounded-2xl shadow-xl border border-[var(--border-soft)] overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group">
             <div className="h-2 bg-gradient-to-r from-red-600 to-rose-600"></div>
             <div className="p-8 flex flex-col items-center text-center">
               <div className="p-5 bg-gradient-to-br from-red-600 to-rose-600 rounded-2xl mb-6 shadow-lg group-hover:shadow-xl transition-shadow transform group-hover:scale-110 duration-300">
                 <FileText className="text-white" size={56} />
               </div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-3">
+              <h3 className="text-2xl font-bold text-[var(--text-main)] mb-3">
                 PDF Report
               </h3>
-              <p className="text-slate-600 mb-2 text-sm leading-relaxed">
+              <p className="text-slate-600 dark:text-slate-300 mb-2 text-sm leading-relaxed">
                 Download a beautifully formatted PDF document with all your
                 analytics data, charts, and visualizations.
               </p>
@@ -359,16 +359,16 @@ const ReportPage = () => {
           </div>
 
           {/* Excel Export Card */}
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group">
+          <div className="surface-card rounded-2xl shadow-xl border border-[var(--border-soft)] overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group">
             <div className="h-2 bg-gradient-to-r from-green-600 to-emerald-600"></div>
             <div className="p-8 flex flex-col items-center text-center">
               <div className="p-5 bg-gradient-to-br from-green-600 to-emerald-600 rounded-2xl mb-6 shadow-lg group-hover:shadow-xl transition-shadow transform group-hover:scale-110 duration-300">
                 <FileSpreadsheet className="text-white" size={56} />
               </div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-3">
+              <h3 className="text-2xl font-bold text-[var(--text-main)] mb-3">
                 Excel Report
               </h3>
-              <p className="text-slate-600 mb-2 text-sm leading-relaxed">
+              <p className="text-slate-600 dark:text-slate-300 mb-2 text-sm leading-relaxed">
                 Download a comprehensive Excel spreadsheet with multiple sheets
                 for detailed data analysis and manipulation.
               </p>
@@ -397,21 +397,21 @@ const ReportPage = () => {
         </div>
 
         {/* Additional Info */}
-        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl p-8 shadow-lg">
+        <div className="surface-card rounded-2xl p-8 shadow-lg">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-lg flex-shrink-0">
               <FileText className="text-white" size={24} />
             </div>
             <div className="flex-1">
-              <h4 className="font-semibold text-slate-800 mb-3 text-lg">
+              <h4 className="font-semibold text-[var(--text-main)] mb-3 text-lg">
                 About Your Reports
               </h4>
-              <p className="text-slate-700 text-sm leading-relaxed mb-3">
+              <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed mb-3">
                 Reports are generated in real-time and include all current data
                 from your analytics dashboard. File names automatically include
                 the current date for easy organization and archiving.
               </p>
-              <p className="text-slate-700 text-sm leading-relaxed">
+              <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
                 Both PDF and Excel formats contain the same comprehensive data -
                 choose the format that works best for your workflow. PDFs are
                 great for viewing and sharing, while Excel is perfect for

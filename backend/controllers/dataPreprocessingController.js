@@ -4,6 +4,7 @@ const xlsx = require("xlsx");
 const PDFDocument = require("pdfkit");
 const fs = require("fs");
 const path = require("path");
+const logActivity = require("../utils/logActivity");
 
 // In-memory storage (demo)
 let processedDataStore = [];
@@ -230,6 +231,15 @@ const preprocessBatchData = async (req, res) => {
     // Delete uploaded file
     fs.unlinkSync(filePath);
 
+    await logActivity(
+      req.userId ? "User" : "System",
+      "Data Preprocessed",
+      "Data Preprocessing",
+      `Processed ${rawData.length} rows, output ${normalized.length} rows`,
+      "success",
+      req
+    );
+
     res.json({
       data: normalized,
       stats: stats
@@ -260,6 +270,15 @@ const exportPDF = (req, res) => {
     });
 
     doc.end();
+
+    logActivity(
+      req.userId ? "User" : "System",
+      "Processed Data Exported",
+      "Data Preprocessing",
+      "Exported processed data as PDF",
+      "success",
+      req
+    );
   } catch (error) {
     console.error("PDF export error:", error);
     res.status(500).json({ error: "Failed to export PDF" });
@@ -282,6 +301,15 @@ const exportExcel = (req, res) => {
       if (err) console.error(err);
       fs.unlinkSync(filePath); // Delete after download
     });
+
+    logActivity(
+      req.userId ? "User" : "System",
+      "Processed Data Exported",
+      "Data Preprocessing",
+      "Exported processed data as Excel",
+      "success",
+      req
+    );
   } catch (error) {
     console.error("Excel export error", error);
     res.status(500).json({ error: "Failed to export Excel" });

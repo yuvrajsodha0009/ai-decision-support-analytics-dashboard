@@ -3,6 +3,7 @@ const Sales = require("../models/Sales");
 const ApiData = require("../models/ApiData");
 const KPI = require("../models/KPI");
 const Data = require("../models/Data");
+const logActivity = require("../utils/logActivity");
 
 // --- Helper Functions for Styling ---
 
@@ -73,6 +74,19 @@ exports.exportPDFWithModules = async (req, res) => {
     if (!modules || modules.csvUpload) promises.push(Data.find().sort({ uploadedAt: -1 }).limit(50).then(d => csvData = d));
     
     await Promise.all(promises);
+
+    const moduleList = modules
+      ? Object.keys(modules).filter((m) => modules[m])
+      : ["sales", "apiData", "dataQuality", "csvUpload"];
+
+    await logActivity(
+      req.userId ? "User" : "System",
+      "Report Exported",
+      "Reports",
+      `Exported PDF report (${moduleList.join(", ") || "all modules"})`,
+      "success",
+      req
+    );
 
     // 2. Init PDF
     const doc = new PDFDocument({ margin: 35, size: "A4", bufferPages: true });
@@ -273,6 +287,19 @@ exports.exportExcelWithModules = async (req, res) => {
     if (!modules || modules.csvUpload) promises.push(Data.find().sort({ uploadedAt: -1 }).limit(100).then(d => csvData = d));
 
     await Promise.all(promises);
+
+    const moduleList = modules
+      ? Object.keys(modules).filter((m) => modules[m])
+      : ["sales", "apiData", "dataQuality", "csvUpload"];
+
+    await logActivity(
+      req.userId ? "User" : "System",
+      "Report Exported",
+      "Reports",
+      `Exported Excel report (${moduleList.join(", ") || "all modules"})`,
+      "success",
+      req
+    );
 
     // Create workbook
     const workbook = new ExcelJS.Workbook();

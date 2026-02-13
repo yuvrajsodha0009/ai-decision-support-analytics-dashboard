@@ -67,7 +67,7 @@ const DataQualityPage = () => {
   };
 
   return (
-    <div className="p-8 bg-slate-900 min-h-screen">
+    <div className="p-8 bg-[var(--bg-page)] text-[var(--text-main)] min-h-screen">
       {/* Header */}
       <div className="mb-8 flex items-center gap-4">
         <div className="p-4 bg-gradient-to-br from-emerald-600 to-teal-600 rounded-2xl shadow-xl">
@@ -201,13 +201,13 @@ const DataQualityPage = () => {
       </div>
 
       {/* Dataset Quality Details */}
-      <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100 animate-fadeIn stagger-4">
-        <h3 className="text-2xl font-bold text-slate-900 mb-6">
+      <div className="surface-card p-8 rounded-2xl shadow-xl animate-fadeIn stagger-4">
+        <h3 className="text-2xl font-bold text-[var(--text-main)] mb-6">
           Dataset Quality Details
         </h3>
         <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
           <table className="w-full">
-            <thead className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+            <thead className="table-head">
               <tr>
                 <th className="px-6 py-4 text-left font-semibold">
                   Dataset Name
@@ -220,14 +220,14 @@ const DataQualityPage = () => {
                 <th className="px-6 py-4 text-left font-semibold">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-[var(--border-soft)]">
               {datasetQuality.map((dataset, idx) => (
                 <tr
                   key={dataset.name}
-                  className="hover:bg-slate-50 transition-colors animate-fadeIn"
+                  className="table-row table-row-hover transition-colors animate-fadeIn"
                   style={{ animationDelay: `${idx * 0.1}s` }}
                 >
-                  <td className="px-6 py-4 font-semibold text-slate-900">
+                  <td className="px-6 py-4 font-semibold text-[var(--text-main)]">
                     {dataset.name}
                   </td>
                   <td className="px-6 py-4">
@@ -251,7 +251,7 @@ const DataQualityPage = () => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-slate-700">
+                  <td className="px-6 py-4 text-slate-700 dark:text-slate-300">
                     {dataset.records.toLocaleString()}
                   </td>
                   <td className="px-6 py-4">
@@ -278,14 +278,14 @@ const DataQualityPage = () => {
       </div>
 
       {/* Recommendations */}
-      <div className="mt-8 bg-blue-50 border border-blue-200 rounded-2xl p-8 animate-slideInLeft">
+      <div className="mt-8 surface-card rounded-2xl p-8 animate-slideInLeft">
         <div className="flex items-start gap-4">
           <TrendingUp className="text-blue-600 flex-shrink-0 mt-1" size={24} />
           <div>
-            <h4 className="font-bold text-slate-900 mb-2">
+            <h4 className="font-bold text-[var(--text-main)] mb-2">
               Recommendations to Improve Quality
             </h4>
-            <ul className="space-y-2 text-slate-700">
+            <ul className="space-y-2 text-slate-700 dark:text-slate-300">
               <li>
                 • Continue data validation at the point of entry to maintain
                 95%+ accuracy

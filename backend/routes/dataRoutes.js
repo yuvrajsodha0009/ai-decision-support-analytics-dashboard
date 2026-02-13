@@ -4,6 +4,7 @@ const csv = require("csv-parser");
 const fs = require("fs");
 const Data = require("../models/Data");
 const crypto = require("crypto");
+const logActivity = require("../utils/logActivity");
 const {
   updateDataRecord,
   getDataHistory,
@@ -36,6 +37,14 @@ router.post("/upload-csv", upload.single("file"), (req, res) => {
     .on("end", async () => {
       await Data.insertMany(results);
       fs.unlinkSync(req.file.path);
+      await logActivity(
+        req.userId ? "User" : "System",
+        "CSV Uploaded",
+        "CSV Data",
+        `Uploaded ${results.length} records (batch ${batchId})`,
+        "success",
+        req
+      );
       res.json({ message: "CSV uploaded", batchId });
     });
 });
@@ -81,6 +90,15 @@ router.delete("/batch/:batchId", async (req, res) => {
   const { batchId } = req.params;
 
   await Data.deleteMany({ batchId });
+
+  await logActivity(
+    req.userId ? "User" : "System",
+    "CSV Batch Deleted",
+    "CSV Data",
+    `Deleted batch ${batchId}`,
+    "warning",
+    req
+  );
 
   res.json({
     message: `Batch ${batchId} deleted successfully`

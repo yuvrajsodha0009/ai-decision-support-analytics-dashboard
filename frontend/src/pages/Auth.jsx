@@ -1,7 +1,8 @@
 import { useState } from "react";
+import axios from "axios";
 import { register, login } from "../Services/authApi";
 import { useNavigate } from "react-router-dom";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Eye, EyeOff, X } from "lucide-react";
 
 const Auth = () => {
   const [mode, setMode] = useState("login");
@@ -11,6 +12,13 @@ const Auth = () => {
   const [loginRole, setLoginRole] = useState("user");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showReset, setShowReset] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const navigate = useNavigate();
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -19,6 +27,9 @@ const Auth = () => {
     setMode(mode === "login" ? "signup" : "login");
     setLoginRole("user");
     setError("");
+    setShowPassword(false);
+    setShowReset(false);
+    setResetMessage("");
   };
 
   const validateForm = () => {
@@ -70,23 +81,67 @@ const Auth = () => {
               email: email.trim().toLowerCase(),
               password: password.trim(),
             }
-          : { email: email.trim().toLowerCase(), password: password.trim() };
+          : {
+              email: email.trim().toLowerCase(),
+              password: password.trim(),
+              role: loginRole,
+            };
 
       res = await (mode === "signup" ? register(data) : login(data));
 
       const { token } = res.data;
       localStorage.setItem("token", token);
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
-      // Simple role flag: admin can be identified by credentials
-      const isAdmin =
-        data.email === "admin@gmail.com" && data.password === "admin123";
-      localStorage.setItem("role", isAdmin ? "admin" : "user");
+      const userRole = res.data?.user?.role || "user";
+      const userName = res.data?.user?.name || "";
+      const userEmail = res.data?.user?.email || email.trim().toLowerCase();
+      localStorage.setItem("role", userRole);
+      localStorage.setItem("userName", userName);
+      localStorage.setItem("userEmail", userEmail);
 
       navigate("/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || "Authentication failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setResetMessage("");
+
+    const trimmedEmail = resetEmail.trim().toLowerCase();
+    const trimmedPassword = resetPassword.trim();
+
+    if (!trimmedEmail || !trimmedPassword) {
+      setResetMessage("Email and new password are required");
+      return;
+    }
+    if (!emailRegex.test(trimmedEmail)) {
+      setResetMessage("Please enter a valid email");
+      return;
+    }
+    if (trimmedPassword.length < 6) {
+      setResetMessage("Password must be at least 6 characters long");
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      await axios.post("http://localhost:5000/api/auth/reset-password", {
+        email: trimmedEmail,
+        newPassword: trimmedPassword,
+      });
+      setResetMessage("Password reset successful. You can now sign in.");
+      setResetEmail("");
+      setResetPassword("");
+      setShowResetPassword(false);
+    } catch (err) {
+      setResetMessage(err.response?.data?.message || "Failed to reset password");
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -206,16 +261,42 @@ const Auth = () => {
               <label className="block text-slate-700 text-sm font-medium mb-2">
                 Password
               </label>
-              <input
-                type="password"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300 disabled:opacity-50 backdrop-blur-sm"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  className="w-full px-4 py-3 pr-12 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300 disabled:opacity-50 backdrop-blur-sm"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  disabled={loading}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               <p className="text-slate-500 text-xs mt-2">Must be at least 6 characters</p>
             </div>
+
+            {mode === "login" && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowReset(true);
+                    setResetMessage("");
+                  }}
+                  className="text-sm text-slate-600 hover:text-slate-900 transition-colors"
+                  disabled={loading}
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
 
             <button
               className="w-full bg-gradient-to-r from-cyan-400 to-teal-500 text-black py-3.5 rounded-xl font-semibold hover:shadow-2xl hover:shadow-cyan-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
@@ -261,6 +342,83 @@ const Auth = () => {
           By continuing, you agree to our Terms of Service and Privacy Policy
         </p>
       </div>
+
+      {showReset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Reset Password
+              </h3>
+              <button
+                type="button"
+                className="text-slate-400 hover:text-slate-600"
+                onClick={() => setShowReset(false)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="mt-2 text-sm text-slate-500">
+              Enter your email and a new password.
+            </p>
+
+            <form className="mt-4 space-y-4" onSubmit={handleResetPassword}>
+              <div>
+                <label className="block text-slate-700 text-sm font-medium mb-2">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300 disabled:opacity-50"
+                  placeholder="Enter your email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  disabled={resetLoading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 text-sm font-medium mb-2">
+                  New Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showResetPassword ? "text" : "password"}
+                    className="w-full px-4 py-3 pr-12 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300 disabled:opacity-50"
+                    placeholder="Enter a new password"
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                    disabled={resetLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    disabled={resetLoading}
+                  >
+                    {showResetPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              {resetMessage && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700">
+                  {resetMessage}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-cyan-400 to-teal-500 text-black py-3 rounded-xl font-semibold hover:shadow-2xl hover:shadow-cyan-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={resetLoading}
+              >
+                {resetLoading ? "Resetting..." : "Reset Password"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

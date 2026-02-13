@@ -1,5 +1,6 @@
 const Sales = require("../models/Sales");
 const SalesHistory = require("../models/SalesHistory");
+const logActivity = require("../utils/logActivity");
 
 /**
  * Update a sales record with versioning
@@ -43,6 +44,15 @@ exports.updateSalesRecord = async (req, res) => {
         updatedAt: new Date()
       },
       { new: true }
+    );
+
+    await logActivity(
+      changedBy || "System",
+      "Sales Updated",
+      "Sales",
+      `Updated "${currentRecord.product}" (qty ${currentRecord.quantity}, revenue ${currentRecord.revenue})`,
+      "success",
+      req
     );
 
     res.json({
@@ -93,6 +103,15 @@ exports.rollbackSalesRecord = async (req, res) => {
         updatedAt: new Date()
       },
       { new: true }
+    );
+
+    await logActivity(
+      "System",
+      "Sales Rolled Back",
+      "Sales",
+      `Rolled back "${historyEntry.product}" to version ${version}`,
+      "warning",
+      req
     );
 
     res.json({
@@ -158,6 +177,15 @@ exports.deleteSalesRecord = async (req, res) => {
 
     // Soft delete
     await Sales.findByIdAndUpdate(id, { isActive: false });
+
+    await logActivity(
+      "System",
+      "Sales Deleted",
+      "Sales",
+      `Deleted "${currentRecord.product}"`,
+      "warning",
+      req
+    );
 
     res.json({ message: "Sales record deleted successfully" });
   } catch (error) {

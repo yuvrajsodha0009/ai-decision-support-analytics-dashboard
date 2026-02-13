@@ -1,5 +1,6 @@
 const Data = require("../models/Data");
 const DataHistory = require("../models/DataHistory");
+const logActivity = require("../utils/logActivity");
 
 /**
  * Update a data record with versioning
@@ -41,6 +42,15 @@ exports.updateDataRecord = async (req, res) => {
         updatedAt: new Date()
       },
       { new: true }
+    );
+
+    await logActivity(
+      changedBy || "System",
+      "Data Updated",
+      "Data",
+      `Record "${currentRecord.title}" updated (batch ${currentRecord.batchId})`,
+      "success",
+      req
     );
 
     res.json({
@@ -114,6 +124,15 @@ exports.rollbackDataRecord = async (req, res) => {
       { new: true }
     );
 
+    await logActivity(
+      changedBy || "System",
+      "Data Rolled Back",
+      "Data",
+      `Record "${currentRecord.title}" rolled back to version ${version}`,
+      "warning",
+      req
+    );
+
     res.json({
       message: `Data record rolled back to version ${version}`,
       data: rolledBackRecord
@@ -183,6 +202,15 @@ exports.deleteDataRecord = async (req, res) => {
 
     // Soft delete
     await Data.findByIdAndUpdate(id, { isActive: false });
+
+    await logActivity(
+      changedBy || "System",
+      "Data Deleted",
+      "Data",
+      `Record "${record.title}" deleted (batch ${record.batchId})`,
+      "warning",
+      req
+    );
 
     res.json({ message: "Data record deleted successfully" });
   } catch (error) {

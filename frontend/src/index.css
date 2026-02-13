@@ -2,6 +2,382 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Light/Dark tokens driven by .dark on <html> */
+:root {
+  color-scheme: light;
+  --bg-page: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-sidebar: #eef2ff;
+  --text-main: #1f2937;
+  --border-soft: #e5e7eb;
+  --settings-panel-bg: var(--bg-surface);
+  --settings-card-bg: var(--bg-surface);
+  --settings-subtle-bg: #eef2f7;
+  --settings-border: #d1d5db;
+  --settings-muted: #475569;
+}
+
+:root.dark {
+  color-scheme: dark;
+  --bg-page: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-sidebar: #0c162b;
+  --text-main: #e5e7eb;
+  --border-soft: #475569;
+  --settings-panel-bg: #172238;
+  --settings-card-bg: #1c2b45;
+  --settings-subtle-bg: #142034;
+  --settings-border: #3a4b69;
+  --settings-muted: #cbd5e1;
+}
+
+/* Safety overrides to keep legacy utility colors readable in dark mode */
+:root.dark .bg-white {
+  background-color: var(--bg-surface) !important;
+}
+:root.dark .text-slate-900 {
+  color: #e5e7eb !important;
+}
+:root.dark .text-slate-700 {
+  color: #cbd5e1 !important;
+}
+
+/* Map legacy slate backgrounds to theme surfaces so light mode stays bright */
+.bg-slate-950,
+.bg-slate-900 {
+  background-color: var(--bg-page) !important;
+}
+.bg-slate-800,
+.bg-slate-700 {
+  background-color: var(--bg-surface) !important;
+}
+
+body {
+  background: var(--bg-page);
+  color: var(--text-main);
+}
+
+.app-shell {
+  background: var(--bg-page);
+  color: var(--text-main);
+}
+
+.app-main {
+  background: var(--bg-surface);
+  color: var(--text-main);
+}
+
+.app-sidebar {
+  background: var(--bg-sidebar);
+  color: var(--text-main);
+  border-color: var(--border-soft);
+}
+
+.settings-page {
+  background: var(--bg-page);
+  color: var(--text-main);
+}
+
+.settings-panel,
+.settings-tabs-panel {
+  background: var(--settings-panel-bg);
+  color: var(--text-main);
+  border-color: var(--settings-border);
+}
+
+.settings-card {
+  background: var(--settings-card-bg);
+  color: var(--text-main);
+  border-color: var(--settings-border);
+}
+
+.settings-input {
+  background: var(--settings-subtle-bg);
+  color: var(--text-main);
+  border-color: var(--settings-border);
+}
+
+.form-control {
+  @apply bg-white dark:bg-slate-700 text-gray-800 dark:text-gray-100 border border-gray-300 dark:border-slate-600 focus:ring-indigo-500 focus:border-indigo-500 outline-none;
+}
+
+.settings-page .form-control {
+  background-color: var(--settings-subtle-bg);
+  border-color: var(--settings-border);
+  color: var(--text-main);
+}
+
+.settings-page .form-control::placeholder {
+  color: var(--settings-muted);
+}
+
+.settings-subpanel {
+  background: var(--settings-subtle-bg);
+  border-color: var(--settings-border);
+}
+
+/* Settings page contrast boosts (light mode only) */
+:root:not(.dark) .settings-page .text-slate-200 {
+  color: #334155;
+}
+
+:root:not(.dark) .settings-page .text-slate-300 {
+  color: #475569;
+}
+
+:root:not(.dark) .settings-page .text-slate-400 {
+  color: #64748b;
+}
+
+:root:not(.dark) .settings-page .text-slate-500 {
+  color: #475569;
+}
+
+:root:not(.dark) .settings-page .border-white\/10,
+:root:not(.dark) .settings-page .border-white\/15,
+:root:not(.dark) .settings-page .border-white\/20 {
+  border-color: var(--settings-border);
+}
+
+:root:not(.dark) .settings-page .bg-white\/5 {
+  background-color: #f1f5f9;
+}
+
+:root:not(.dark) .settings-page .bg-white\/10 {
+  background-color: #e2e8f0;
+}
+
+/* Settings page contrast boosts (dark mode only) */
+:root.dark .settings-page .text-slate-500 {
+  color: #cbd5e1;
+}
+
+:root.dark .settings-page .text-slate-400 {
+  color: #d4dde8;
+}
+
+:root.dark .settings-page .border-white\/10 {
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+:root.dark .settings-page .bg-white\/5 {
+  background-color: rgba(148, 163, 184, 0.12);
+}
+
+:root.dark .settings-page .bg-slate-400 {
+  background-color: #cbd5e1;
+}
+
+/* CSV upload page theming */
+.csv-page {
+  --csv-bg: #f8fafc;
+  --csv-surface: #ffffff;
+  --csv-surface-alt: #f1f5f9;
+  --csv-border: #e2e8f0;
+  --csv-text: #0f172a;
+  --csv-muted: #334155;
+  --csv-muted-2: #475569;
+  --csv-amber-100: #92400e;
+  --csv-amber-200: #b45309;
+  --csv-amber-300: #d97706;
+  --csv-emerald-100: #047857;
+  --csv-emerald-200: #059669;
+  --csv-emerald-300: #10b981;
+  --csv-modal-bg: #ffffff;
+  --csv-chart-grid: #e2e8f0;
+  --csv-chart-axis: #475569;
+  --csv-chart-tooltip-bg: #ffffff;
+  --csv-chart-tooltip-border: #e2e8f0;
+  --csv-chart-tooltip-text: #0f172a;
+  --csv-chart-cursor-bg: #f8fafc;
+  --csv-chart-legend: #0f172a;
+  background: var(--csv-bg);
+  color: var(--csv-text);
+}
+
+:root.dark .csv-page {
+  --csv-bg: linear-gradient(135deg, #0f172a 0%, #0f172a 60%, #020617 100%);
+  --csv-surface: rgba(255, 255, 255, 0.05);
+  --csv-surface-alt: rgba(255, 255, 255, 0.1);
+  --csv-border: rgba(255, 255, 255, 0.12);
+  --csv-text: #f8fafc;
+  --csv-muted: #cbd5e1;
+  --csv-muted-2: #94a3b8;
+  --csv-amber-100: #fef3c7;
+  --csv-amber-200: #fde68a;
+  --csv-amber-300: #fcd34d;
+  --csv-emerald-100: #d1fae5;
+  --csv-emerald-200: #a7f3d0;
+  --csv-emerald-300: #6ee7b7;
+  --csv-modal-bg: #0f172a;
+  --csv-chart-grid: #1f2937;
+  --csv-chart-axis: #cbd5f5;
+  --csv-chart-tooltip-bg: #0f172a;
+  --csv-chart-tooltip-border: #1f2937;
+  --csv-chart-tooltip-text: #e5e7eb;
+  --csv-chart-cursor-bg: #0f172a;
+  --csv-chart-legend: #e5e7eb;
+}
+
+.csv-page .bg-white\/5 {
+  background-color: var(--csv-surface);
+}
+
+.csv-page .bg-white\/10 {
+  background-color: var(--csv-surface-alt);
+}
+
+.csv-page .border-white\/10,
+.csv-page .border-white\/15,
+.csv-page .border-white\/20 {
+  border-color: var(--csv-border);
+}
+
+.csv-page .text-white {
+  color: var(--csv-text);
+}
+
+.csv-page .text-slate-100 {
+  color: var(--csv-text);
+}
+
+.csv-page .text-slate-200,
+.csv-page .text-slate-200\/80,
+.csv-page .text-slate-300 {
+  color: var(--csv-muted);
+}
+
+.csv-page .text-slate-400 {
+  color: var(--csv-muted-2);
+}
+
+.csv-page .text-amber-100 {
+  color: var(--csv-amber-100);
+}
+
+.csv-page .text-amber-200 {
+  color: var(--csv-amber-200);
+}
+
+.csv-page .text-amber-300 {
+  color: var(--csv-amber-300);
+}
+
+.csv-page .text-emerald-100 {
+  color: var(--csv-emerald-100);
+}
+
+.csv-page .text-emerald-200 {
+  color: var(--csv-emerald-200);
+}
+
+.csv-page .text-emerald-300 {
+  color: var(--csv-emerald-300);
+}
+
+.csv-page .bg-slate-900 {
+  background-color: var(--csv-modal-bg);
+}
+
+.csv-page .csv-on-accent,
+.csv-page .csv-on-accent .text-white {
+  color: #ffffff;
+}
+
+.csv-page .csv-on-accent .text-amber-100,
+.csv-page .csv-on-accent .text-amber-200,
+.csv-page .csv-on-accent .text-amber-300 {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.csv-page .csv-subcard {
+  background: var(--csv-surface);
+  border: 1px solid var(--csv-border);
+  color: var(--csv-text);
+}
+
+:root:not(.dark) .csv-page .csv-subcard .text-amber-50,
+:root:not(.dark) .csv-page .csv-subcard .text-amber-100,
+:root:not(.dark) .csv-page .csv-subcard .text-amber-200,
+:root:not(.dark) .csv-page .csv-subcard .text-amber-300 {
+  color: var(--csv-muted);
+}
+
+:root:not(.dark) .csv-page .csv-subcard strong {
+  color: var(--csv-text);
+}
+
+.csv-page .csv-danger {
+  background-color: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+
+.csv-page .csv-danger:hover {
+  background-color: #fecaca;
+  border-color: #f87171;
+}
+
+:root.dark .csv-page .csv-danger {
+  background-color: rgba(239, 68, 68, 0.18);
+  border-color: rgba(248, 113, 113, 0.7);
+  color: #fecaca;
+}
+
+:root:not(.dark) .csv-page .csv-title {
+  background-image: none;
+  color: var(--csv-text);
+  -webkit-text-fill-color: var(--csv-text);
+}
+
+:root:not(.dark) .csv-page .csv-subtitle {
+  color: var(--csv-muted);
+}
+
+/* Helper utilities for theme-friendly surfaces/text */
+.surface-card {
+  @apply bg-[var(--bg-surface)] border border-[var(--border-soft)] shadow-md text-[var(--text-main)];
+}
+
+.muted-text {
+  color: var(--text-main);
+}
+
+/* Table helpers */
+.table-shell {
+  @apply surface-card rounded-2xl overflow-hidden;
+}
+
+.table-head {
+  background: var(--bg-surface);
+  color: var(--text-main);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.table-row {
+  background: var(--bg-surface);
+  color: var(--text-main);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.table-row:nth-child(even) {
+  background: var(--bg-page);
+}
+
+.table-row-hover:hover {
+  background: #e2e8f0 !important;
+}
+
+:root.dark .table-row-hover:hover {
+  background: #1f2937 !important;
+}
+
+.badge-soft {
+  @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border border-[var(--border-soft)];
+  background: var(--bg-surface);
+  color: var(--text-main);
+}
+
 @layer utilities {
   @keyframes blob {
     0%, 100% {
@@ -201,4 +577,25 @@
   .stagger-5 {
     animation-delay: 0.5s;
   }
+
+  /* Hide scrollbars but keep scroll */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+:root.density-compact table th,
+:root.density-compact table td {
+  padding: 0.5rem 0.75rem !important;
+}
+
+:root.motion-off *,
+:root.motion-off *::before,
+:root.motion-off *::after {
+  animation: none !important;
+  transition: none !important;
 }

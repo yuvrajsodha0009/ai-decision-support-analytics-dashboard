@@ -229,7 +229,7 @@ const ApiData = () => {
     })) || [];
 
   return (
-    <div className="p-8 min-h-screen bg-gradient-to-br from-cyan-50 via-white to-teal-50">
+    <div className="p-8 min-h-screen bg-[var(--bg-page)] text-[var(--text-main)]">
       {/* Professional Header with Logo */}
       <div className="mb-6 flex flex-wrap items-center gap-4 justify-between">
         <div className="flex items-center gap-3">
@@ -237,27 +237,27 @@ const ApiData = () => {
             <Database className="text-white" size={32} />
           </div>
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 via-teal-700 to-cyan-600 bg-clip-text text-transparent">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 via-teal-700 to-cyan-600 bg-clip-text text-transparent dark:text-slate-100">
               API Data Management
             </h1>
-            <p className="text-slate-600 mt-1">
+            <p className="text-slate-600 dark:text-slate-300 mt-1">
               Fetch and manage data from external APIs
             </p>
           </div>
         </div>
-        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-emerald-100 to-cyan-100 text-teal-700 border border-emerald-200 shadow-sm">
+        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-teal-800 border border-emerald-300 shadow-sm dark:bg-emerald-900/40 dark:text-emerald-100 dark:border-emerald-400/40">
           Live dataset
         </span>
       </div>
 
       {/* Quick Stats */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 mb-6">
-        <div className="rounded-2xl border border-cyan-100 bg-white/80 backdrop-blur shadow-lg p-4 flex items-center justify-between">
+        <div className="surface-card rounded-2xl p-4 flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide text-cyan-700 font-semibold">
               Total Value
             </p>
-            <p className="text-2xl font-bold text-slate-900 mt-1">
+            <p className="text-2xl font-bold text-[var(--text-main)] mt-1">
               {formatCurrency(summary?.totalValue ?? 0)}
             </p>
           </div>
@@ -265,29 +265,29 @@ const ApiData = () => {
             INR
           </span>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white/80 backdrop-blur shadow-lg p-4 flex items-center justify-between">
+        <div className="surface-card rounded-2xl p-4 flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300 font-semibold">
               Batches
             </p>
-            <p className="text-2xl font-bold text-slate-900 mt-1">
+            <p className="text-2xl font-bold text-[var(--text-main)] mt-1">
               {batches.length}
             </p>
           </div>
-          <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+          <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600">
             {selectedBatch === "all" ? "All" : "Filtered"}
           </span>
         </div>
-        <div className="rounded-2xl border border-teal-100 bg-gradient-to-r from-cyan-50 to-emerald-50 shadow-lg p-4 flex items-center justify-between">
+        <div className="surface-card rounded-2xl p-4 flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide text-teal-700 font-semibold">
               Records
             </p>
-            <p className="text-2xl font-bold text-slate-900 mt-1">
+            <p className="text-2xl font-bold text-[var(--text-main)] mt-1">
               {data.length}
             </p>
           </div>
-          <span className="text-xs px-2 py-1 rounded-full bg-white text-teal-700 border border-teal-100">
+          <span className="text-xs px-2 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-200 dark:bg-teal-900/40 dark:text-teal-100 dark:border-teal-400/40">
             Live
           </span>
         </div>
@@ -313,7 +313,7 @@ const ApiData = () => {
               setSelectedBatch("all");
               setMessage("Data refreshed successfully");
             }}
-            className="px-5 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold shadow-sm hover:border-cyan-200 hover:text-cyan-700 transition flex items-center gap-2"
+            className="px-5 py-3 rounded-xl border border-[var(--border-soft)] bg-[var(--bg-surface)] text-[var(--text-main)] font-semibold shadow-sm hover:border-cyan-200 hover:text-cyan-700 transition flex items-center gap-2"
           >
             Refresh Data
           </button>
@@ -327,12 +327,12 @@ const ApiData = () => {
       </div>
 
       {/* CSV Upload Usage CTA */}
-      <div className="mb-6 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-cyan-50 shadow-md p-5 flex flex-wrap items-center justify-between gap-4">
+      <div className="mb-6 rounded-2xl border border-[var(--border-soft)] bg-[var(--bg-surface)] shadow-md p-5 flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-wide text-indigo-600 font-semibold">
             Need CSV data?
           </p>
-          <p className="text-sm text-slate-600 max-w-2xl">
+          <p className="text-sm text-slate-600 dark:text-slate-300 max-w-2xl">
             Upload spreadsheets, inspect versions, and roll back changes
             directly from the CSV Upload workspace.
           </p>
@@ -346,7 +346,7 @@ const ApiData = () => {
           </button>
           <button
             onClick={() => navigate("/csv-upload")}
-            className="px-4 py-2 rounded-lg border border-indigo-200 bg-white text-indigo-600 text-sm font-semibold hover:border-indigo-300 transition"
+            className="px-4 py-2 rounded-lg border border-indigo-200 bg-[var(--bg-surface)] text-indigo-600 text-sm font-semibold hover:border-indigo-300 transition"
           >
             View CSV History
           </button>
@@ -354,7 +354,7 @@ const ApiData = () => {
       </div>
 
       {message && (
-        <p className="mb-6 text-sm text-slate-800 bg-cyan-100 border border-cyan-200 px-4 py-3 rounded-lg shadow-sm">
+        <p className="mb-6 text-sm text-[var(--text-main)] bg-cyan-100 dark:bg-slate-800 border border-cyan-200 dark:border-[var(--border-soft)] px-4 py-3 rounded-lg shadow-sm">
           {message}
         </p>
       )}
@@ -438,7 +438,7 @@ const ApiData = () => {
       )}
 
       {/* ================= CHART ================= */}
-      <div className="bg-white/90 backdrop-blur rounded-xl shadow-lg border border-slate-200 p-6 mb-8">
+      <div className="surface-card rounded-xl p-6 mb-8">
         <h2 className="text-lg font-semibold mb-4">API Batch Trend Analysis</h2>
 
         <div className="h-72">
@@ -468,7 +468,7 @@ const ApiData = () => {
         <select
           value={selectedBatch}
           onChange={(e) => handleBatchChange(e.target.value)}
-          className="px-4 py-2 rounded-lg border border-slate-300 bg-white shadow-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+          className="form-control px-4 py-2 rounded-lg shadow-sm"
         >
           <option value="all">All Batches</option>
           {batches.map((b) => (
@@ -489,13 +489,13 @@ const ApiData = () => {
       </div>
 
       {/* ================= TABLE ================= */}
-      <div className="bg-white/95 backdrop-blur rounded-3xl shadow-[0_25px_60px_-25px_rgba(15,23,42,0.35)] border border-slate-200/80 overflow-hidden">
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100 bg-gradient-to-r from-white via-cyan-50 to-white">
+      <div className="surface-card rounded-3xl shadow-[0_25px_60px_-25px_rgba(15,23,42,0.35)] overflow-hidden">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-[var(--border-soft)] bg-[var(--bg-surface)]">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900">
+            <h2 className="text-xl font-semibold text-[var(--text-main)]">
               API Data Records
             </h2>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-slate-500 dark:text-slate-300">
               Live database view of fetched batches
             </p>
           </div>
@@ -506,8 +506,8 @@ const ApiData = () => {
 
         <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
           <table className="w-full border-collapse text-sm">
-            <thead className="sticky top-0 z-10">
-              <tr className="bg-gradient-to-r from-cyan-50 to-teal-50 text-slate-700 border-y border-slate-200 uppercase text-[11px] tracking-wide">
+            <thead className="table-head sticky top-0 z-10 uppercase text-[11px] tracking-wide">
+              <tr className="border-y border-[var(--border-soft)]">
                 <th className="p-3 text-left font-semibold">#</th>
                 <th className="p-3 text-left font-semibold">Title</th>
                 <th className="p-3 text-right font-semibold">Value</th>
@@ -520,12 +520,10 @@ const ApiData = () => {
               {data.map((row, i) => (
                 <tr
                   key={row._id}
-                  className={`${
-                    i % 2 === 0 ? "bg-white" : "bg-slate-50"
-                  } border-b border-slate-100 hover:bg-cyan-50/60 transition-colors`}
+                  className="table-row table-row-hover transition-colors"
                 >
-                  <td className="p-3 text-slate-600 font-semibold">{i + 1}</td>
-                  <td className="p-3 text-slate-900">
+                  <td className="p-3 text-slate-600 dark:text-slate-300 font-semibold">{i + 1}</td>
+                  <td className="p-3 text-[var(--text-main)]">
                     {editingRecord === row._id ? (
                       <input
                         type="text"
@@ -533,13 +531,13 @@ const ApiData = () => {
                         onChange={(e) =>
                           setEditForm({ ...editForm, title: e.target.value })
                         }
-                        className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        className="form-control w-full rounded-lg px-2 py-1 text-sm"
                       />
                     ) : (
                       row.title
                     )}
                   </td>
-                  <td className="p-3 text-right text-slate-900">
+                  <td className="p-3 text-right text-[var(--text-main)]">
                     {editingRecord === row._id ? (
                       <input
                         type="number"
@@ -551,18 +549,18 @@ const ApiData = () => {
                             value: parseFloat(e.target.value) || 0,
                           })
                         }
-                        className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        className="form-control w-full rounded-lg px-2 py-1 text-sm text-right"
                       />
                     ) : (
                       row.value.toFixed(2)
                     )}
                   </td>
                   <td className="p-3">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">
+                    <span className="badge-soft">
                       <Package size={14} /> v{row.version}
                     </span>
                   </td>
-                  <td className="p-3 text-sm text-slate-700">
+                  <td className="p-3 text-sm text-slate-700 dark:text-slate-300">
                     {new Date(row.fetchedAt).toLocaleString()}
                   </td>
                   <td className="p-3">
@@ -592,7 +590,7 @@ const ApiData = () => {
                               changeReason: e.target.value,
                             })
                           }
-                          className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                          className="form-control rounded-lg px-3 py-2 text-sm"
                         />
                       </div>
                     ) : (
@@ -633,19 +631,19 @@ const ApiData = () => {
 
       {/* History Modal */}
       {showHistory && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[72vh] overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-white via-indigo-50 to-white">
-              <h3 className="text-lg font-semibold text-slate-900">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="surface-card rounded-2xl w-full max-w-4xl max-h-[72vh] overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-soft)] bg-[var(--bg-surface)]">
+              <h3 className="text-lg font-semibold text-[var(--text-main)]">
                 Version History
               </h3>
               <div className="flex items-center gap-2">
-                <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                <span className="text-xs px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200 border border-[var(--border-soft)]">
                   {history.length} entries
                 </span>
                 <button
                   onClick={() => setShowHistory(false)}
-                  className="px-3 py-1.5 text-sm rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  className="px-3 py-1.5 text-sm rounded-lg bg-[var(--bg-surface)] border border-[var(--border-soft)] hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-main)]"
                 >
                   Close
                 </button>
@@ -653,7 +651,7 @@ const ApiData = () => {
             </div>
             <div className="overflow-auto max-h-[calc(72vh-64px)]">
               <table className="w-full border-collapse text-sm">
-                <thead className="bg-slate-100 text-slate-700 uppercase text-[11px] tracking-wide">
+                <thead className="table-head uppercase text-[11px] tracking-wide">
                   <tr>
                     <th className="p-2 text-left">Version</th>
                     <th className="p-2 text-left">Title</th>
@@ -668,18 +666,18 @@ const ApiData = () => {
                   {history.map((h) => (
                     <tr
                       key={h._id}
-                      className="border-b last:border-0 hover:bg-indigo-50/40"
+                      className="table-row table-row-hover last:border-0"
                     >
-                      <td className="p-2 font-semibold text-slate-800">
+                      <td className="p-2 font-semibold text-[var(--text-main)]">
                         {h.version}
                       </td>
                       <td className="p-2">{h.title}</td>
                       <td className="p-2 text-right">{h.value}</td>
-                      <td className="p-2 text-slate-700">
+                      <td className="p-2 text-slate-700 dark:text-slate-300">
                         {new Date(h.changedAt || h.fetchedAt).toLocaleString()}
                       </td>
                       <td className="p-2">{h.changeType}</td>
-                      <td className="p-2 text-slate-600">{h.changeReason}</td>
+                      <td className="p-2 text-slate-600 dark:text-slate-300">{h.changeReason}</td>
                       <td className="p-2">
                         <button
                           onClick={() =>

@@ -41,6 +41,19 @@ const AdminManagementPage = () => {
 
   const headers = { Authorization: `Bearer ${localStorage.getItem("token")}` };
 
+  const getInitials = (name = "", email = "") => {
+    const val = (name || "").trim() || (email || "").trim() || "U";
+    const parts = val.split(/\s+/);
+    if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    return val[0].toUpperCase();
+  };
+
+  const getAvatarUrl = (avatar) => {
+    if (!avatar) return "";
+    if (avatar.startsWith("http")) return avatar;
+    return `http://localhost:5000${avatar}`;
+  };
+
   // Helper function to format large numbers
   const formatLargeNumber = (num) => {
     if (num >= 1000000000) {
@@ -321,7 +334,7 @@ const AdminManagementPage = () => {
   );
 
   return (
-    <div className="p-8 min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50">
+    <div className="p-8 min-h-screen bg-[var(--bg-page)] text-[var(--text-main)]">
       {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -329,10 +342,10 @@ const AdminManagementPage = () => {
             <Settings className="text-white" size={32} />
           </div>
           <div>
-            <h1 className="text-4xl font-bold text-slate-900">
+            <h1 className="text-4xl font-bold text-[var(--text-main)]">
               Admin Management
             </h1>
-            <p className="text-slate-600 mt-1">
+            <p className="text-slate-600 dark:text-slate-300 mt-1">
               Complete system control and monitoring
             </p>
           </div>
@@ -370,13 +383,13 @@ const AdminManagementPage = () => {
       {/* Dashboard Stats */}
       {activeTab === "dashboard" && systemStats && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200 hover:shadow-xl transition">
+          <div className="surface-card rounded-2xl shadow-lg p-6 hover:shadow-xl transition">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase text-slate-500 font-semibold">
                   Total Users
                 </p>
-                <p className="text-3xl font-bold text-slate-900 mt-2">
+                <p className="text-3xl font-bold text-[var(--text-main)] mt-2">
                   {systemStats.totalUsers}
                 </p>
               </div>
@@ -384,13 +397,13 @@ const AdminManagementPage = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200 hover:shadow-xl transition">
+          <div className="surface-card rounded-2xl shadow-lg p-6 hover:shadow-xl transition">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase text-slate-500 font-semibold">
                   Active Users
                 </p>
-                <p className="text-3xl font-bold text-slate-900 mt-2">
+                <p className="text-3xl font-bold text-[var(--text-main)] mt-2">
                   {systemStats.activeUsers}
                 </p>
               </div>
@@ -398,13 +411,13 @@ const AdminManagementPage = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200 hover:shadow-xl transition">
+          <div className="surface-card rounded-2xl shadow-lg p-6 hover:shadow-xl transition">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase text-slate-500 font-semibold">
                   Total Datasets
                 </p>
-                <p className="text-3xl font-bold text-slate-900 mt-2">
+                <p className="text-3xl font-bold text-[var(--text-main)] mt-2">
                   {systemStats.totalDatasets}
                 </p>
               </div>
@@ -412,13 +425,13 @@ const AdminManagementPage = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200 hover:shadow-xl transition">
+          <div className="surface-card rounded-2xl shadow-lg p-6 hover:shadow-xl transition">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase text-slate-500 font-semibold">
                   Total Value
                 </p>
-                <p className="text-3xl font-bold text-slate-900 mt-2">
+                <p className="text-3xl font-bold text-[var(--text-main)] mt-2">
                   ₹{formatLargeNumber((systemStats.totalValue || 0) * 83)}
                 </p>
               </div>
@@ -429,7 +442,7 @@ const AdminManagementPage = () => {
       )}
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-2 mb-8 bg-white rounded-xl shadow-lg p-2 border border-slate-200">
+      <div className="flex flex-wrap gap-2 mb-8 surface-card rounded-xl shadow-lg p-2">
         {[
           { id: "dashboard", label: "Dashboard" },
           { id: "users", label: "User Management" },
@@ -442,7 +455,7 @@ const AdminManagementPage = () => {
             className={`px-6 py-3 rounded-lg font-semibold transition-all ${
               activeTab === tab.id
                 ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg"
-                : "text-slate-700 hover:bg-slate-100"
+                : "text-[var(--text-main)] hover:bg-[var(--bg-page)] border border-transparent"
             }`}
           >
             {tab.label}
@@ -459,7 +472,7 @@ const AdminManagementPage = () => {
               placeholder="Search users..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              className="form-control flex-1 px-4 py-3 rounded-lg"
             />
             <button
               onClick={() => {
@@ -479,11 +492,11 @@ const AdminManagementPage = () => {
             </button>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+          <div className="surface-card rounded-2xl shadow-lg overflow-hidden">
             <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
               <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr className="text-left text-xs uppercase text-slate-600 font-semibold">
+                <thead className="bg-slate-50 dark:bg-slate-800 border-b border-[var(--border-soft)]">
+                  <tr className="text-left text-xs uppercase text-slate-700 font-semibold">
                     <th className="p-4">#</th>
                     <th className="p-4">Username</th>
                     <th className="p-4">Email</th>
@@ -496,28 +509,41 @@ const AdminManagementPage = () => {
                   {filteredUsers.map((user, idx) => (
                     <tr
                       key={user._id}
-                      className="border-b border-slate-100 hover:bg-slate-50 transition"
+                      className="border-b border-[var(--border-soft)] hover:bg-slate-50 dark:hover:bg-slate-800 transition"
                     >
                       <td className="p-4 text-slate-600">{idx + 1}</td>
                       <td className="p-4 text-slate-900 font-medium">
-                        {user.name}
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 overflow-hidden rounded-full border border-[var(--border-soft)] bg-[var(--bg-surface)] flex items-center justify-center text-sm font-semibold text-[var(--text-main)]">
+                            {getAvatarUrl(user.avatar) ? (
+                              <img
+                                src={getAvatarUrl(user.avatar)}
+                                alt={user.name || "User"}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              getInitials(user.name, user.email)
+                            )}
+                          </div>
+                          <span>{user.name}</span>
+                        </div>
                       </td>
-                      <td className="p-4 text-slate-600">
+                      <td className="p-4 text-slate-600 dark:text-slate-300">
                         {user.email || "N/A"}
                       </td>
                       <td className="p-4">
                         <span
-                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
+                          className={`badge-soft ${
                             user.role === "admin"
-                              ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
-                              : "bg-slate-100 text-slate-700 border border-slate-200"
+                              ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200"
+                              : "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200"
                           }`}
                         >
                           <Shield size={12} />
                           {user.role}
                         </span>
                       </td>
-                      <td className="p-4 text-slate-600 text-sm">
+                      <td className="p-4 text-slate-700 text-sm">
                         {user.createdAt
                           ? new Date(user.createdAt).toLocaleDateString()
                           : "N/A"}
@@ -564,14 +590,14 @@ const AdminManagementPage = () => {
             placeholder="Search datasets..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            className="form-control w-full px-4 py-3 rounded-lg"
           />
 
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+          <div className="surface-card rounded-2xl shadow-lg overflow-hidden">
             <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
               <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr className="text-left text-xs uppercase text-slate-600 font-semibold">
+                <thead className="table-head border-b border-[var(--border-soft)]">
+                  <tr className="text-left text-xs uppercase font-semibold text-[var(--text-main)]">
                     <th className="p-4">#</th>
                     <th className="p-4">Title</th>
                     <th className="p-4">Value</th>
@@ -584,21 +610,21 @@ const AdminManagementPage = () => {
                   {filteredDatasets.slice(0, 50).map((dataset, idx) => (
                     <tr
                       key={dataset._id}
-                      className="border-b border-slate-100 hover:bg-slate-50 transition"
+                      className="table-row table-row-hover transition"
                     >
-                      <td className="p-4 text-slate-600">{idx + 1}</td>
-                      <td className="p-4 text-slate-900 font-medium">
+                      <td className="p-4 text-[var(--text-main)]">{idx + 1}</td>
+                      <td className="p-4 text-[var(--text-main)] font-semibold">
                         {dataset.title || "N/A"}
                       </td>
-                      <td className="p-4 text-green-600 font-semibold">
+                      <td className="p-4 text-green-500 dark:text-green-300 font-semibold">
                         ₹{formatLargeNumber((dataset.value || 0) * 83)}
                       </td>
-                      <td className="p-4 text-slate-600 text-sm">
+                      <td className="p-4 text-slate-600 dark:text-slate-300 text-sm">
                         {dataset.batchId
                           ? dataset.batchId.substring(0, 8) + "..."
                           : "N/A"}
                       </td>
-                      <td className="p-4 text-slate-600 text-sm">
+                      <td className="p-4 text-slate-600 dark:text-slate-300 text-sm">
                         {dataset.uploadedAt
                           ? new Date(dataset.uploadedAt).toLocaleDateString()
                           : "N/A"}
@@ -647,17 +673,17 @@ const AdminManagementPage = () => {
       {/* Activity Tab */}
       {activeTab === "activity" && (
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-            <div className="p-6 border-b border-slate-200">
-              <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
+          <div className="surface-card rounded-2xl shadow-lg overflow-hidden">
+            <div className="p-6 border-b border-[var(--border-soft)]">
+              <h2 className="text-xl font-semibold text-[var(--text-main)] flex items-center gap-2">
                 <Activity className="text-indigo-500" />
                 Recent System Activity
               </h2>
             </div>
             <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
               <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr className="text-left text-xs uppercase text-slate-600 font-semibold">
+                <thead className="table-head border-b border-[var(--border-soft)]">
+                  <tr className="text-left text-xs uppercase font-semibold text-[var(--text-main)]">
                     <th className="p-4">#</th>
                     <th className="p-4">User</th>
                     <th className="p-4">Action</th>
@@ -671,10 +697,10 @@ const AdminManagementPage = () => {
                     activities.slice(0, 50).map((activity, idx) => (
                       <tr
                         key={activity._id || idx}
-                        className="border-b border-slate-100 hover:bg-slate-50 transition"
+                        className="table-row table-row-hover transition"
                       >
-                        <td className="p-4 text-slate-600">{idx + 1}</td>
-                        <td className="p-4 text-slate-900 font-medium">
+                        <td className="p-4 text-slate-600 dark:text-slate-300">{idx + 1}</td>
+                        <td className="p-4 text-[var(--text-main)] font-medium">
                           {activity.user || "System"}
                         </td>
                         <td className="p-4">
@@ -682,10 +708,10 @@ const AdminManagementPage = () => {
                             {activity.action || "N/A"}
                           </span>
                         </td>
-                        <td className="p-4 text-slate-600">
+                        <td className="p-4 text-slate-700">
                           {activity.resource || "N/A"}
                         </td>
-                        <td className="p-4 text-slate-600 text-sm">
+                        <td className="p-4 text-slate-700 text-sm">
                           {activity.timestamp
                             ? new Date(activity.timestamp).toLocaleString()
                             : "N/A"}
@@ -724,7 +750,7 @@ const AdminManagementPage = () => {
       {/* User Modal */}
       {showUserModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="surface-card rounded-2xl shadow-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-slate-900">
                 {editingUser ? "Edit User" : "Add New User"}
@@ -742,7 +768,7 @@ const AdminManagementPage = () => {
 
             <form onSubmit={handleSaveUser} className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <label className="block text-sm font-semibold text-[var(--text-main)] mb-2">
                   Name / Username
                 </label>
                 <input
@@ -752,13 +778,13 @@ const AdminManagementPage = () => {
                   onChange={(e) =>
                     setUserForm({ ...userForm, name: e.target.value })
                   }
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  className="form-control w-full px-4 py-3 rounded-lg"
                   placeholder="Enter name or username"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <label className="block text-sm font-semibold text-[var(--text-main)] mb-2">
                   Email (Optional)
                 </label>
                 <input
@@ -767,13 +793,13 @@ const AdminManagementPage = () => {
                   onChange={(e) =>
                     setUserForm({ ...userForm, email: e.target.value })
                   }
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  className="form-control w-full px-4 py-3 rounded-lg"
                   placeholder="Enter email"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <label className="block text-sm font-semibold text-[var(--text-main)] mb-2">
                   Password
                 </label>
                 <input
@@ -783,7 +809,7 @@ const AdminManagementPage = () => {
                   onChange={(e) =>
                     setUserForm({ ...userForm, password: e.target.value })
                   }
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  className="form-control w-full px-4 py-3 rounded-lg"
                   placeholder={
                     editingUser
                       ? "Leave blank to keep current"
@@ -793,7 +819,7 @@ const AdminManagementPage = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <label className="block text-sm font-semibold text-[var(--text-main)] mb-2">
                   Role
                 </label>
                 <select
@@ -801,7 +827,7 @@ const AdminManagementPage = () => {
                   onChange={(e) =>
                     setUserForm({ ...userForm, role: e.target.value })
                   }
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  className="form-control w-full px-4 py-3 rounded-lg"
                 >
                   <option value="user">User</option>
                   <option value="admin">Admin</option>
@@ -815,7 +841,7 @@ const AdminManagementPage = () => {
                     setShowUserModal(false);
                     setEditingUser(null);
                   }}
-                  className="flex-1 px-4 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition font-semibold"
+                  className="flex-1 px-4 py-3 border border-[var(--border-soft)] text-[var(--text-main)] rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition font-semibold"
                 >
                   Cancel
                 </button>
@@ -834,8 +860,8 @@ const AdminManagementPage = () => {
 
       {/* Confirmation Modal */}
       {showConfirmModal && confirmAction && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full animate-fadeIn p-8">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="surface-card rounded-2xl shadow-2xl max-w-sm w-full animate-fadeIn p-8">
             {/* Icon */}
             <div className="flex justify-center mb-6">
               <div className="p-4 bg-red-100 rounded-full">
@@ -844,10 +870,10 @@ const AdminManagementPage = () => {
             </div>
 
             {/* Title and Message */}
-            <h3 className="text-2xl font-bold text-center text-slate-900 mb-3">
+            <h3 className="text-2xl font-bold text-center text-[var(--text-main)] mb-3">
               Confirm Delete
             </h3>
-            <p className="text-center text-slate-600 mb-8">
+            <p className="text-center text-slate-600 dark:text-slate-300 mb-8">
               Are you sure you want to delete{" "}
               <span className="font-semibold text-slate-900">
                 "{confirmAction.name}"
@@ -866,7 +892,7 @@ const AdminManagementPage = () => {
                   setShowConfirmModal(false);
                   setConfirmAction(null);
                 }}
-                className="flex-1 px-4 py-3 bg-slate-200 text-slate-700 rounded-lg font-semibold hover:bg-slate-300 transition-colors"
+                className="flex-1 px-4 py-3 bg-[var(--bg-surface)] border border-[var(--border-soft)] text-[var(--text-main)] rounded-lg font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 Cancel
               </button>

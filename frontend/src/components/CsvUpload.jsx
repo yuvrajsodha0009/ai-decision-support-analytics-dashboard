@@ -277,17 +277,17 @@ const CsvUpload = () => {
   }, []);
 
   return (
-    <div className="p-8 min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 text-slate-50">
+    <div className="csv-page p-8 min-h-screen">
       <div className="mb-6 flex flex-wrap items-center gap-4 justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-4 bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl shadow-2xl shadow-orange-500/30">
+          <div className="csv-on-accent p-4 bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl shadow-2xl shadow-orange-500/30">
             <FileSpreadsheet className="text-white" size={32} />
           </div>
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-white via-amber-200 to-orange-300 bg-clip-text text-transparent">
+            <h1 className="csv-title text-4xl font-bold bg-gradient-to-r from-white via-amber-200 to-orange-300 bg-clip-text text-transparent">
               CSV Data Management
             </h1>
-            <p className="text-slate-300 mt-1">
+            <p className="csv-subtitle text-slate-300 mt-1">
               Upload, analyze, and manage your CSV datasets
             </p>
           </div>
@@ -338,7 +338,7 @@ const CsvUpload = () => {
       </div>
 
       {csvSummary && csvInsights && (
-        <div className="bg-gradient-to-r from-amber-500 to-rose-500 text-white p-6 rounded-2xl shadow-2xl mb-8 border border-amber-600/20 backdrop-blur">
+        <div className="csv-on-accent bg-gradient-to-r from-amber-500 to-rose-500 text-white p-6 rounded-2xl shadow-2xl mb-8 border border-amber-600/20 backdrop-blur">
           <div className="flex items-center gap-4">
             <div className="p-3 rounded-lg bg-white/10">
               <FileSpreadsheet className="text-white" size={20} />
@@ -355,7 +355,7 @@ const CsvUpload = () => {
           </div>
 
           <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white/10 p-4 rounded-lg">
+            <div className="csv-subcard bg-white/10 p-4 rounded-lg">
               <p className="text-xs uppercase text-amber-100 font-semibold">
                 Total Value
               </p>
@@ -364,7 +364,7 @@ const CsvUpload = () => {
               </p>
             </div>
 
-            <div className="bg-white/10 p-4 rounded-lg">
+            <div className="csv-subcard bg-white/10 p-4 rounded-lg">
               <p className="text-xs uppercase text-amber-100 font-semibold">
                 Best Batch
               </p>
@@ -373,7 +373,7 @@ const CsvUpload = () => {
               </p>
             </div>
 
-            <div className="bg-white/10 p-4 rounded-lg">
+            <div className="csv-subcard bg-white/10 p-4 rounded-lg">
               <p className="text-xs uppercase text-amber-100 font-semibold">
                 Worst Batch
               </p>
@@ -383,7 +383,7 @@ const CsvUpload = () => {
             </div>
           </div>
 
-          <div className="mt-4 p-3 bg-white/10 rounded-lg text-sm text-amber-50">
+          <div className="csv-subcard mt-4 p-3 bg-white/10 rounded-lg text-sm text-amber-50">
             <div>
               <strong>Trend:</strong> {csvInsights.trend ?? "n/a"}
             </div>
@@ -428,7 +428,7 @@ const CsvUpload = () => {
             </button>
             <button
               onClick={deleteSelectedBatch}
-              className="px-4 py-2 rounded-lg border border-red-500/50 text-red-100 text-sm hover:bg-red-500/10 hover:border-red-400/60 transition disabled:opacity-30 disabled:cursor-not-allowed"
+              className="csv-danger px-4 py-2 rounded-lg border text-sm transition disabled:opacity-30 disabled:cursor-not-allowed"
               disabled={selectedBatch === "all"}
               title={
                 selectedBatch === "all"
@@ -551,20 +551,20 @@ const CsvUpload = () => {
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={batchChartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--csv-chart-grid)" />
               <XAxis
                 dataKey="name"
-                stroke="#cbd5f5"
-                tick={{ fill: "#cbd5f5" }}
+                stroke="var(--csv-chart-axis)"
+                tick={{ fill: "var(--csv-chart-axis)" }}
               />
-              <YAxis stroke="#cbd5f5" tick={{ fill: "#cbd5f5" }} />
+              <YAxis stroke="var(--csv-chart-axis)" tick={{ fill: "var(--csv-chart-axis)" }} />
               <Tooltip
                 cursor={{ stroke: "#f97316" }}
                 contentStyle={{
                   borderRadius: "12px",
-                  border: "1px solid #1f2937",
-                  background: "#0f172a",
-                  color: "#e5e7eb",
+                  border: "1px solid var(--csv-chart-tooltip-border)",
+                  background: "var(--csv-chart-tooltip-bg)",
+                  color: "var(--csv-chart-tooltip-text)",
                 }}
               />
               <Line
@@ -593,26 +593,26 @@ const CsvUpload = () => {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={categoryData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--csv-chart-grid)" />
                 <XAxis
                   dataKey="name"
-                  stroke="#cbd5f5"
+                  stroke="var(--csv-chart-axis)"
                   angle={-25}
                   textAnchor="end"
                   height={60}
-                  tick={{ fill: "#cbd5f5" }}
+                  tick={{ fill: "var(--csv-chart-axis)" }}
                 />
-                <YAxis stroke="#cbd5f5" tick={{ fill: "#cbd5f5" }} />
+                <YAxis stroke="var(--csv-chart-axis)" tick={{ fill: "var(--csv-chart-axis)" }} />
                 <Tooltip
-                  cursor={{ fill: "#0f172a" }}
+                  cursor={{ fill: "var(--csv-chart-cursor-bg)" }}
                   contentStyle={{
                     borderRadius: "12px",
-                    border: "1px solid #1f2937",
-                    background: "#0f172a",
-                    color: "#e5e7eb",
+                    border: "1px solid var(--csv-chart-tooltip-border)",
+                    background: "var(--csv-chart-tooltip-bg)",
+                    color: "var(--csv-chart-tooltip-text)",
                   }}
                 />
-                <Legend wrapperStyle={{ color: "#e5e7eb" }} />
+                <Legend wrapperStyle={{ color: "var(--csv-chart-legend)" }} />
                 <Bar
                   dataKey="value"
                   fill="url(#barGradient)"
@@ -666,9 +666,9 @@ const CsvUpload = () => {
                   ]}
                   contentStyle={{
                     borderRadius: "12px",
-                    border: "1px solid #1f2937",
-                    background: "#0f172a",
-                    color: "#e5e7eb",
+                    border: "1px solid var(--csv-chart-tooltip-border)",
+                    background: "var(--csv-chart-tooltip-bg)",
+                    color: "var(--csv-chart-tooltip-text)",
                   }}
                 />
               </PieChart>
@@ -739,7 +739,7 @@ const CsvUpload = () => {
                       </button>
                       <button
                         onClick={() => deleteData(item._id)}
-                        className="px-3 py-2 rounded-lg border border-red-500/40 bg-red-500/10 text-red-100 hover:bg-red-500/20 flex items-center gap-1 text-xs"
+                        className="csv-danger px-3 py-2 rounded-lg border text-xs flex items-center gap-1 transition"
                       >
                         <Trash size={14} />
                         Delete

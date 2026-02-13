@@ -8,6 +8,7 @@ const {
 } = require("../controllers/apiAnalyticsController");
 
 const ApiData = require("../models/ApiData");
+const logActivity = require("../utils/logActivity");
 
 router.post("/api-data/fetch", fetchApiData);
 
@@ -34,6 +35,14 @@ router.get("/api-data/batch/:batchId", async (req, res) => {
 
 router.delete("/api-data/batch/:batchId", async (req, res) => {
   await ApiData.deleteMany({ batchId: req.params.batchId });
+  await logActivity(
+    req.userId ? "User" : "System",
+    "API Batch Deleted",
+    "API Data",
+    `Deleted batch ${req.params.batchId}`,
+    "warning",
+    req
+  );
   res.json({ message: "Batch deleted" });
 });
 

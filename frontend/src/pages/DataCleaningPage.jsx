@@ -133,13 +133,7 @@ const DataPreprocessingPage = () => {
   };
 
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        background:
-          "linear-gradient(180deg, #0f172a 0%, #0b1220 60%, #08101d 100%)",
-      }}
-    >
+    <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-main)]">
       <div className="p-8">
         {/* Header */}
         <div className="mb-8 flex items-center gap-4">
@@ -152,14 +146,14 @@ const DataPreprocessingPage = () => {
             <h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
               Data Cleaning Studio
             </h1>
-            <p className="text-slate-400 mt-1">
+            <p className="text-slate-500 dark:text-slate-300 mt-1">
               Remove missing values, deduplicate, and normalize for AI
             </p>
           </div>
         </div>
 
         {/* Upload Section */}
-        <div className="bg-white p-10 rounded-2xl shadow-xl max-w-6xl border border-slate-100 mb-8">
+        <div className="surface-card p-10 rounded-2xl shadow-xl max-w-6xl mb-8">
           <MessageBar
             type={error ? "error" : success ? "success" : "info"}
             message={error || success}
@@ -178,17 +172,17 @@ const DataPreprocessingPage = () => {
           </div>
 
           <div className="space-y-6">
-            <div className="border-2 border-dashed border-emerald-300 rounded-xl p-8 bg-gradient-to-br from-emerald-50 to-teal-50 hover:border-emerald-400 transition-colors">
+            <div className="border-2 border-dashed border-emerald-300 dark:border-emerald-500/60 rounded-xl p-8 bg-[var(--bg-surface)] hover:border-emerald-400 transition-colors">
               <div className="flex flex-col items-center justify-center gap-4">
                 <div className="p-4 bg-white rounded-full shadow-lg">
                   <FileType className="text-emerald-600" size={32} />
                 </div>
                 <div className="text-center">
                   <label htmlFor="file-upload" className="cursor-pointer">
-                    <span className="text-lg font-semibold text-slate-700">
+                    <span className="text-lg font-semibold text-[var(--text-main)]">
                       Choose a file to preprocess
                     </span>
-                    <p className="text-sm text-slate-500 mt-1">
+                    <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">
                       CSV, Excel, JSON, or TXT files supported
                     </p>
                   </label>
@@ -211,7 +205,7 @@ const DataPreprocessingPage = () => {
 
             {/* Options */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <label className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200">
+              <label className="flex items-center gap-3 p-3 surface-card rounded-xl">
                 <input
                   type="checkbox"
                   checked={options.removeMissing}
@@ -222,14 +216,14 @@ const DataPreprocessingPage = () => {
                     }))
                   }
                 />
-                <span className="inline-flex items-center gap-2 text-slate-700">
+                <span className="inline-flex items-center gap-2 text-[var(--text-main)]">
                   <span className="p-2 rounded-lg bg-emerald-50 border border-emerald-200">
                     <Eraser className="text-emerald-600" size={16} />
                   </span>
                   Remove Missing Values
                 </span>
               </label>
-              <label className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200">
+              <label className="flex items-center gap-3 p-3 surface-card rounded-xl">
                 <input
                   type="checkbox"
                   checked={options.removeDuplicates}
@@ -240,14 +234,14 @@ const DataPreprocessingPage = () => {
                     }))
                   }
                 />
-                <span className="inline-flex items-center gap-2 text-slate-700">
+                <span className="inline-flex items-center gap-2 text-[var(--text-main)]">
                   <span className="p-2 rounded-lg bg-cyan-50 border border-cyan-200">
                     <Copy className="text-cyan-600" size={16} />
                   </span>
                   Remove Duplicates
                 </span>
               </label>
-              <label className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200">
+              <label className="flex items-center gap-3 p-3 surface-card rounded-xl">
                 <input
                   type="checkbox"
                   checked={options.normalize}
@@ -255,7 +249,7 @@ const DataPreprocessingPage = () => {
                     setOptions((o) => ({ ...o, normalize: e.target.checked }))
                   }
                 />
-                <span className="inline-flex items-center gap-2 text-slate-700">
+                <span className="inline-flex items-center gap-2 text-[var(--text-main)]">
                   <span className="p-2 rounded-lg bg-teal-50 border border-teal-200">
                     <Sigma className="text-teal-600" size={16} />
                   </span>
@@ -265,12 +259,12 @@ const DataPreprocessingPage = () => {
             </div>
 
             {file && (
-              <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <div className="flex items-center gap-3 p-4 bg-emerald-50 dark:bg-slate-800 border border-emerald-200 dark:border-[var(--border-soft)] rounded-xl">
                 <CheckCircle2 className="text-emerald-600" size={24} />
                 <div className="flex-1">
-                  <p className="text-sm text-slate-600">Selected file:</p>
-                  <p className="font-semibold text-slate-800">{file.name}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-sm text-slate-600 dark:text-slate-300">Selected file:</p>
+                  <p className="font-semibold text-[var(--text-main)]">{file.name}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     {(file.size / 1024).toFixed(2)} KB
                   </p>
                 </div>
@@ -307,9 +301,9 @@ const DataPreprocessingPage = () => {
             )}
 
             {error && (
-              <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+              <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-400/40 rounded-xl">
                 <XCircle className="text-red-600" size={24} />
-                <p className="text-red-700 font-medium">{error}</p>
+                <p className="text-red-700 dark:text-red-200 font-medium">{error}</p>
               </div>
             )}
           </div>
@@ -317,17 +311,17 @@ const DataPreprocessingPage = () => {
 
         {/* Processed Data Results */}
         {processedData.length > 0 && (
-          <div className="bg-white p-10 rounded-2xl shadow-xl max-w-6xl border border-slate-100">
+          <div className="surface-card p-10 rounded-2xl shadow-xl max-w-6xl">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-gradient-to-br from-emerald-600 to-teal-600 rounded-xl">
                   <FileCheck className="text-white" size={24} />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-800">
+                  <h2 className="text-2xl font-bold text-[var(--text-main)]">
                     Processed Data Results
                   </h2>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 dark:text-slate-300">
                     {processedData.length} rows processed successfully
                   </p>
                 </div>
@@ -358,9 +352,9 @@ const DataPreprocessingPage = () => {
               </div>
             </div>
 
-            <div className="overflow-auto max-h-[500px] border border-slate-200 rounded-xl shadow-inner">
+            <div className="overflow-auto max-h-[500px] border border-[var(--border-soft)] rounded-xl shadow-inner">
               <table className="table-auto w-full text-sm">
-                <thead className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white sticky top-0">
+                <thead className="table-head sticky top-0">
                   <tr>
                     {Object.keys(processedData[0]).map((key) => (
                       <th
@@ -372,14 +366,14 @@ const DataPreprocessingPage = () => {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-slate-200">
+                <tbody className="bg-[var(--bg-surface)] divide-y divide-[var(--border-soft)]">
                   {processedData.map((row, i) => (
                     <tr
                       key={i}
-                      className="hover:bg-emerald-50 transition-colors"
+                      className="table-row table-row-hover transition-colors"
                     >
                       {Object.values(row).map((val, j) => (
-                        <td key={j} className="px-4 py-3 text-slate-700">
+                        <td key={j} className="px-4 py-3 text-slate-700 dark:text-slate-200">
                           {typeof val === "number" ? val.toFixed(4) : val}
                         </td>
                       ))}
