@@ -1,19 +1,21 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import DashboardLayout from "./components/DashboardLayout";
+import PrivateRoute from "./components/PrivateRoute";
+import Landing from "./pages/Landing";
+import Auth from "./pages/Auth";
 import DashboardPage from "./pages/DashBoardPage";
+import CategoryAnalytics from "./pages/CategoryAnalytics";
+import SettingsPage from "./pages/SettingsPage";
 import CsvUploadPage from "./pages/CsvUploadPage";
 import ApiData from "./pages/ApiData";
 import KPIPage from "./pages/kpiPage";
 import DataCleaningPage from "./pages/DataCleaningPage";
 import ReportPage from "./pages/ReportPage";
-import ActivityLogPage from "./pages/ActivityLogPage";
-import DataQualityPage from "./pages/DataQualityPage";
-import SalesPage from "./pages/SalesPage";
 import AdminManagementPage from "./pages/AdminManagementPage";
-import SettingsPage from "./pages/SettingsPage";
-import Auth from "./pages/Auth";
-import Landing from "./pages/Landing";
-import PrivateRoute from "./components/PrivateRoute";
+import DataQualityPage from "./pages/DataQualityPage";
+import ActivityLogPage from "./pages/ActivityLogPage";
+import AdminSalesPage from "./pages/AdminSalesPage";
+import MapAnalytics from "./pages/MapAnalytics";
 
 function App() {
   return (
@@ -28,6 +30,24 @@ function App() {
             element={
               <PrivateRoute>
                 <DashboardPage />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/dashboard/category/:categoryName"
+            element={
+              <PrivateRoute>
+                <CategoryAnalytics />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/dashboard/map"
+            element={
+              <PrivateRoute>
+                <MapAnalytics />
               </PrivateRoute>
             }
           />
@@ -50,7 +70,6 @@ function App() {
             }
           />
 
-          {/* Alias for direct /csv-upload links */}
           <Route
             path="/csv-upload"
             element={
@@ -69,7 +88,6 @@ function App() {
             }
           />
 
-          {/* 🔥 KPI ROUTE */}
           <Route
             path="/kpis"
             element={
@@ -79,7 +97,6 @@ function App() {
             }
           />
 
-          {/* 🔥 DATA CLEANING ROUTE */}
           <Route
             path="/data-cleaning"
             element={
@@ -89,7 +106,6 @@ function App() {
             }
           />
 
-          {/* 🔥 REPORT ROUTE */}
           <Route
             path="/reports"
             element={
@@ -99,7 +115,6 @@ function App() {
             }
           />
 
-          {/* 🔥 ADMIN MANAGEMENT ROUTE */}
           <Route
             path="/admin"
             element={
@@ -109,7 +124,6 @@ function App() {
             }
           />
 
-          {/* 🔥 DATA QUALITY ROUTE */}
           <Route
             path="/data-quality"
             element={
@@ -119,7 +133,6 @@ function App() {
             }
           />
 
-          {/* 🔥 ACTIVITY LOG ROUTE */}
           <Route
             path="/activity-log"
             element={
@@ -129,12 +142,20 @@ function App() {
             }
           />
 
-          {/* 🔥 SALES ANALYTICS ROUTE */}
           <Route
             path="/sales"
             element={
               <PrivateRoute requireAdmin>
-                <SalesPage />
+                <Navigate to="/admin/sales" replace />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/admin/sales"
+            element={
+              <PrivateRoute requireAdmin>
+                <AdminSalesPage />
               </PrivateRoute>
             }
           />

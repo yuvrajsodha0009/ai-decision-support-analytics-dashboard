@@ -10,6 +10,12 @@
   --bg-sidebar: #eef2ff;
   --text-main: #1f2937;
   --border-soft: #e5e7eb;
+  --chart-hover-bg: #ffffff;
+  --chart-hover-border: #cbd5e1;
+  --chart-hover-text: #0f172a;
+  --chart-hover-muted: #334155;
+  --chart-hover-cursor-fill: rgba(148, 163, 184, 0.18);
+  --chart-hover-cursor-stroke: #64748b;
   --settings-panel-bg: var(--bg-surface);
   --settings-card-bg: var(--bg-surface);
   --settings-subtle-bg: #eef2f7;
@@ -24,6 +30,12 @@
   --bg-sidebar: #0c162b;
   --text-main: #e5e7eb;
   --border-soft: #475569;
+  --chart-hover-bg: #0f172a;
+  --chart-hover-border: #475569;
+  --chart-hover-text: #e5e7eb;
+  --chart-hover-muted: #cbd5e1;
+  --chart-hover-cursor-fill: rgba(148, 163, 184, 0.2);
+  --chart-hover-cursor-stroke: #94a3b8;
   --settings-panel-bg: #172238;
   --settings-card-bg: #1c2b45;
   --settings-subtle-bg: #142034;
@@ -58,19 +70,15 @@ body {
 }
 
 .app-shell {
-  background: var(--bg-page);
   color: var(--text-main);
 }
 
 .app-main {
-  background: var(--bg-surface);
   color: var(--text-main);
 }
 
 .app-sidebar {
-  background: var(--bg-sidebar);
   color: var(--text-main);
-  border-color: var(--border-soft);
 }
 
 .settings-page {
@@ -186,10 +194,10 @@ body {
   --csv-modal-bg: #ffffff;
   --csv-chart-grid: #e2e8f0;
   --csv-chart-axis: #475569;
-  --csv-chart-tooltip-bg: #ffffff;
-  --csv-chart-tooltip-border: #e2e8f0;
-  --csv-chart-tooltip-text: #0f172a;
-  --csv-chart-cursor-bg: #f8fafc;
+  --csv-chart-tooltip-bg: var(--chart-hover-bg);
+  --csv-chart-tooltip-border: var(--chart-hover-border);
+  --csv-chart-tooltip-text: var(--chart-hover-text);
+  --csv-chart-cursor-bg: var(--chart-hover-cursor-fill);
   --csv-chart-legend: #0f172a;
   background: var(--csv-bg);
   color: var(--csv-text);
@@ -212,10 +220,10 @@ body {
   --csv-modal-bg: #0f172a;
   --csv-chart-grid: #1f2937;
   --csv-chart-axis: #cbd5f5;
-  --csv-chart-tooltip-bg: #0f172a;
-  --csv-chart-tooltip-border: #1f2937;
-  --csv-chart-tooltip-text: #e5e7eb;
-  --csv-chart-cursor-bg: #0f172a;
+  --csv-chart-tooltip-bg: var(--chart-hover-bg);
+  --csv-chart-tooltip-border: var(--chart-hover-border);
+  --csv-chart-tooltip-text: var(--chart-hover-text);
+  --csv-chart-cursor-bg: var(--chart-hover-cursor-fill);
   --csv-chart-legend: #e5e7eb;
 }
 
@@ -334,6 +342,34 @@ body {
   color: var(--csv-muted);
 }
 
+/* Unified chart hover palette across all Recharts tooltips/cursors */
+.recharts-default-tooltip {
+  background: var(--chart-hover-bg) !important;
+  border: 1px solid var(--chart-hover-border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14) !important;
+}
+
+.recharts-tooltip-label {
+  color: var(--chart-hover-text) !important;
+  font-weight: 700 !important;
+}
+
+.recharts-tooltip-item {
+  color: var(--chart-hover-muted) !important;
+  font-weight: 600 !important;
+}
+
+.recharts-tooltip-item-name,
+.recharts-tooltip-item-value {
+  color: inherit !important;
+}
+
+.recharts-tooltip-cursor {
+  fill: var(--chart-hover-cursor-fill) !important;
+  stroke: var(--chart-hover-cursor-stroke) !important;
+}
+
 /* Helper utilities for theme-friendly surfaces/text */
 .surface-card {
   @apply bg-[var(--bg-surface)] border border-[var(--border-soft)] shadow-md text-[var(--text-main)];
@@ -376,6 +412,27 @@ body {
   @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border border-[var(--border-soft)];
   background: var(--bg-surface);
   color: var(--text-main);
+}
+
+/* Keep login email/password fields readable with fixed colors, including autofill */
+.auth-fixed-input {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.auth-fixed-input::placeholder {
+  color: #64748b !important;
+}
+
+.auth-fixed-input:-webkit-autofill,
+.auth-fixed-input:-webkit-autofill:hover,
+.auth-fixed-input:-webkit-autofill:focus,
+.auth-fixed-input:-webkit-autofill:active {
+  -webkit-text-fill-color: #0f172a !important;
+  -webkit-box-shadow: 0 0 0px 1000px #f1f5f9 inset !important;
+  box-shadow: 0 0 0px 1000px #f1f5f9 inset !important;
+  transition: background-color 9999s ease-out 0s;
 }
 
 @layer utilities {

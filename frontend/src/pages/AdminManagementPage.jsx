@@ -13,8 +13,19 @@ import {
   AlertCircle,
   TrendingUp,
   Shield,
-  Eye,
+  Crown,
+  Briefcase,
+  User,
 } from "lucide-react";
+import {
+  ACCOUNT_STATUS,
+  getRoleRank,
+  isAdminRole,
+  normalizeAccountStatus,
+  normalizeRole,
+  ROLES,
+  ROLE_DESCRIPTIONS,
+} from "../utils/roles";
 
 const AdminManagementPage = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -30,7 +41,7 @@ const AdminManagementPage = () => {
   const [userForm, setUserForm] = useState({
     name: "",
     email: "",
-    role: "user",
+    role: ROLES.EMPLOYEE,
     password: "",
   });
   const [searchTerm, setSearchTerm] = useState("");
@@ -38,8 +49,38 @@ const AdminManagementPage = () => {
   const [messageType, setMessageType] = useState(""); // "success" or "error"
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null); // { type, id, name }
+  const [statusLoadingById, setStatusLoadingById] = useState({});
+  const [currentUser, setCurrentUser] = useState(() => ({
+    id: null,
+    email: (localStorage.getItem("userEmail") || "").toLowerCase(),
+    role: normalizeRole(localStorage.getItem("role") || ROLES.EMPLOYEE),
+  }));
 
   const headers = { Authorization: `Bearer ${localStorage.getItem("token")}` };
+
+  const ROLE_META = {
+    [ROLES.ADMIN]: {
+      label: ROLES.ADMIN,
+      description: ROLE_DESCRIPTIONS[ROLES.ADMIN],
+      badge:
+        "bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-700",
+      icon: Crown,
+    },
+    [ROLES.MANAGER]: {
+      label: ROLES.MANAGER,
+      description: ROLE_DESCRIPTIONS[ROLES.MANAGER],
+      badge:
+        "bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-700",
+      icon: Briefcase,
+    },
+    [ROLES.EMPLOYEE]: {
+      label: ROLES.EMPLOYEE,
+      description: ROLE_DESCRIPTIONS[ROLES.EMPLOYEE],
+      badge:
+        "bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-700",
+      icon: User,
+    },
+  };
 
   const getInitials = (name = "", email = "") => {
     const val = (name || "").trim() || (email || "").trim() || "U";
@@ -52,6 +93,58 @@ const AdminManagementPage = () => {
     if (!avatar) return "";
     if (avatar.startsWith("http")) return avatar;
     return `http://localhost:5000${avatar}`;
+  };
+
+  const normalizeUserRecord = (user = {}) => ({
+    ...user,
+    role: normalizeRole(user.role),
+    accountStatus: normalizeAccountStatus(user.accountStatus),
+    lastLoginAt: user.lastLoginAt || null,
+  });
+
+  const getRoleMeta = (role) => ROLE_META[normalizeRole(role)] || ROLE_META[ROLES.EMPLOYEE];
+
+  const getRoleDisplayName = (role) => {
+    const normalized = normalizeRole(role);
+    return ROLE_META[normalized]?.label || ROLES.EMPLOYEE;
+  };
+
+  const getRoleBadgeClasses = (role) => getRoleMeta(role).badge;
+
+  const getRoleDescription = (role) => getRoleMeta(role).description;
+
+  const isCurrentUserRow = (user) => {
+    const emailMatch =
+      (user?.email || "").toLowerCase() &&
+      (user?.email || "").toLowerCase() === currentUser.email;
+    const idMatch = currentUser.id && String(user?._id) === String(currentUser.id);
+    return Boolean(emailMatch || idMatch);
+  };
+
+  const getAdminCount = () =>
+    users.filter((user) => normalizeRole(user.role) === ROLES.ADMIN).length;
+
+  const canEditUser = (user) =>
+    getRoleRank(currentUser.role) >= getRoleRank(user.role);
+
+  const canDeleteUser = (user) => {
+    if (!isAdminRole(currentUser.role)) return false;
+    if (isCurrentUserRow(user)) return false;
+    if (normalizeRole(user.role) === ROLES.ADMIN && getAdminCount() <= 1) return false;
+    return true;
+  };
+
+  const canToggleUserStatus = (user) => {
+    if (!isAdminRole(currentUser.role)) return false;
+    if (isCurrentUserRow(user)) return false;
+    if (
+      normalizeRole(user.role) === ROLES.ADMIN &&
+      normalizeAccountStatus(user.accountStatus) === ACCOUNT_STATUS.ACTIVE &&
+      getAdminCount() <= 1
+    ) {
+      return false;
+    }
+    return true;
   };
 
   // Helper function to format large numbers
@@ -73,13 +166,30 @@ const AdminManagementPage = () => {
   const fetchAllData = async () => {
     try {
       setLoading(true);
+      try {
+        const meRes = await axios.get("http://localhost:5000/api/auth/me", {
+          headers,
+        });
+        const meUser = meRes.data?.user;
+        if (meUser) {
+          setCurrentUser({
+            id: meUser._id || meUser.id || null,
+            email: (meUser.email || "").toLowerCase(),
+            role: normalizeRole(meUser.role),
+          });
+        }
+      } catch (error) {
+        // Keep localStorage fallback if /me fails.
+      }
+
       const usersRes = await axios.get("http://localhost:5000/api/auth/users", {
         headers,
       });
       const usersList = Array.isArray(usersRes.data)
         ? usersRes.data
         : usersRes.data?.users || [];
-      setUsers(usersList);
+      const normalizedUsersList = usersList.map(normalizeUserRecord);
+      setUsers(normalizedUsersList);
 
       const datasetsRes = await axios.get(
         "http://localhost:5000/api/data/all",
@@ -107,10 +217,13 @@ const AdminManagementPage = () => {
         0,
       );
       setSystemStats({
-        totalUsers: usersList.length,
+        totalUsers: normalizedUsersList.length,
         totalDatasets: datasetsList.length,
         totalValue: totalValue,
-        activeUsers: Math.ceil(usersList.length * 0.7),
+        activeUsers: normalizedUsersList.filter(
+          (user) =>
+            normalizeAccountStatus(user.accountStatus) === ACCOUNT_STATUS.ACTIVE,
+        ).length,
       });
     } catch (error) {
       console.error("Failed to fetch data", error);
@@ -129,7 +242,7 @@ const AdminManagementPage = () => {
       const usersList = Array.isArray(res.data)
         ? res.data
         : res.data?.users || [];
-      setUsers(usersList);
+      setUsers(usersList.map(normalizeUserRecord));
       console.log("Fetched users:", usersList);
     } catch (error) {
       console.error("Failed to fetch users", error);
@@ -182,7 +295,7 @@ const AdminManagementPage = () => {
         const updateData = {
           name: userForm.name,
           email: userForm.email,
-          role: userForm.role,
+          role: normalizeRole(userForm.role),
         };
         if (userForm.password) {
           updateData.password = userForm.password;
@@ -201,7 +314,7 @@ const AdminManagementPage = () => {
             name: userForm.name,
             email: userForm.email || undefined,
             password: userForm.password,
-            role: userForm.role,
+            role: normalizeRole(userForm.role),
           },
           {
             headers,
@@ -213,7 +326,7 @@ const AdminManagementPage = () => {
       setMessageType("success");
       setShowUserModal(false);
       setEditingUser(null);
-      setUserForm({ name: "", email: "", role: "user", password: "" });
+      setUserForm({ name: "", email: "", role: ROLES.EMPLOYEE, password: "" });
 
       // Refresh users list
       setTimeout(() => {
@@ -234,10 +347,45 @@ const AdminManagementPage = () => {
     setUserForm({
       name: user.name || user.username || "",
       email: user.email || "",
-      role: user.role,
+      role: normalizeRole(user.role),
       password: "",
     });
     setShowUserModal(true);
+  };
+
+  const handleToggleUserStatus = async (user) => {
+    if (!canToggleUserStatus(user)) return;
+    const nextStatus =
+      normalizeAccountStatus(user.accountStatus) === ACCOUNT_STATUS.ACTIVE
+        ? ACCOUNT_STATUS.SUSPENDED
+        : ACCOUNT_STATUS.ACTIVE;
+
+    try {
+      setStatusLoadingById((prev) => ({ ...prev, [user._id]: true }));
+      await axios.patch(
+        `http://localhost:5000/api/auth/users/${user._id}/status`,
+        { accountStatus: nextStatus },
+        { headers },
+      );
+      setMessage("User status updated successfully");
+      setMessageType("success");
+      fetchUsers();
+      setTimeout(() => setMessage(""), 3000);
+    } catch (error) {
+      const errorMsg =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to update user status";
+      setMessage(errorMsg);
+      setMessageType("error");
+      setTimeout(() => setMessage(""), 3000);
+    } finally {
+      setStatusLoadingById((prev) => {
+        const next = { ...prev };
+        delete next[user._id];
+        return next;
+      });
+    }
   };
 
   const handleDeleteUser = (userId, userName) => {
@@ -323,9 +471,22 @@ const AdminManagementPage = () => {
 
   const filteredUsers = users.filter(
     (u) =>
-      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase())),
+      (u.name || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      ((u.email || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase())),
   );
+
+  const userKpis = {
+    totalUsers: users.length,
+    activeUsers: users.filter(
+      (u) => normalizeAccountStatus(u.accountStatus) === ACCOUNT_STATUS.ACTIVE,
+    ).length,
+    managers: users.filter((u) => normalizeRole(u.role) === ROLES.MANAGER).length,
+    admins: users.filter((u) => normalizeRole(u.role) === ROLES.ADMIN).length,
+  };
 
   const filteredDatasets = datasets.filter(
     (d) =>
@@ -379,6 +540,28 @@ const AdminManagementPage = () => {
           </div>
         </div>
       )}
+
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2 mb-8 surface-card rounded-xl shadow-lg p-2">
+        {[
+          { id: "dashboard", label: "Dashboard" },
+          { id: "users", label: "User Management" },
+          { id: "datasets", label: "Dataset Management" },
+          { id: "activity", label: "System Activity" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+              activeTab === tab.id
+                ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg"
+                : "text-[var(--text-main)] hover:bg-[var(--bg-page)] border border-transparent"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       {/* Dashboard Stats */}
       {activeTab === "dashboard" && systemStats && (
@@ -441,31 +624,56 @@ const AdminManagementPage = () => {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-2 mb-8 surface-card rounded-xl shadow-lg p-2">
-        {[
-          { id: "dashboard", label: "Dashboard" },
-          { id: "users", label: "User Management" },
-          { id: "datasets", label: "Dataset Management" },
-          { id: "activity", label: "System Activity" },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-              activeTab === tab.id
-                ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg"
-                : "text-[var(--text-main)] hover:bg-[var(--bg-page)] border border-transparent"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
       {/* Users Tab */}
       {activeTab === "users" && (
         <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="surface-card rounded-xl p-5 border border-[var(--border-soft)]">
+              <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
+                Total Users
+              </p>
+              <div className="mt-3 flex items-center justify-between">
+                <p className="text-3xl font-bold text-[var(--text-main)]">
+                  {userKpis.totalUsers}
+                </p>
+                <Users className="text-indigo-500" size={24} />
+              </div>
+            </div>
+            <div className="surface-card rounded-xl p-5 border border-[var(--border-soft)]">
+              <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
+                Active Users
+              </p>
+              <div className="mt-3 flex items-center justify-between">
+                <p className="text-3xl font-bold text-[var(--text-main)]">
+                  {userKpis.activeUsers}
+                </p>
+                <TrendingUp className="text-emerald-500" size={24} />
+              </div>
+            </div>
+            <div className="surface-card rounded-xl p-5 border border-[var(--border-soft)]">
+              <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
+                Managers
+              </p>
+              <div className="mt-3 flex items-center justify-between">
+                <p className="text-3xl font-bold text-[var(--text-main)]">
+                  {userKpis.managers}
+                </p>
+                <Briefcase className="text-blue-500" size={24} />
+              </div>
+            </div>
+            <div className="surface-card rounded-xl p-5 border border-[var(--border-soft)]">
+              <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
+                Admins
+              </p>
+              <div className="mt-3 flex items-center justify-between">
+                <p className="text-3xl font-bold text-[var(--text-main)]">
+                  {userKpis.admins}
+                </p>
+                <Crown className="text-amber-500" size={24} />
+              </div>
+            </div>
+          </div>
+
           <div className="flex gap-4 mb-6">
             <input
               type="text"
@@ -478,9 +686,9 @@ const AdminManagementPage = () => {
               onClick={() => {
                 setEditingUser(null);
                 setUserForm({
-                  username: "",
+                  name: "",
                   email: "",
-                  role: "user",
+                  role: ROLES.EMPLOYEE,
                   password: "",
                 });
                 setShowUserModal(true);
@@ -501,75 +709,141 @@ const AdminManagementPage = () => {
                     <th className="p-4">Username</th>
                     <th className="p-4">Email</th>
                     <th className="p-4">Role</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4">Last Login</th>
                     <th className="p-4">Created</th>
                     <th className="p-4">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map((user, idx) => (
-                    <tr
-                      key={user._id}
-                      className="border-b border-[var(--border-soft)] hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                    >
-                      <td className="p-4 text-slate-600">{idx + 1}</td>
-                      <td className="p-4 text-slate-900 font-medium">
-                        <div className="flex items-center gap-3">
+                  {filteredUsers.map((user, idx) => {
+                    const roleMeta = getRoleMeta(user.role);
+                    const RoleIcon = roleMeta.icon;
+                    const accountStatus = normalizeAccountStatus(user.accountStatus);
+                    const isActive = accountStatus === ACCOUNT_STATUS.ACTIVE;
+                    const editDisabled = !canEditUser(user);
+                    const deleteAllowed = canDeleteUser(user);
+                    const statusToggleAllowed = canToggleUserStatus(user);
+                    const statusBusy = Boolean(statusLoadingById[user._id]);
+
+                    return (
+                      <tr
+                        key={user._id}
+                        className="border-b border-[var(--border-soft)] hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                      >
+                        <td className="p-4 text-slate-600">{idx + 1}</td>
+                        <td className="p-4 text-slate-900 font-medium">
+                          <div className="flex items-center gap-3">
                             <div className="h-10 w-10 overflow-hidden rounded-full border border-[var(--border-soft)] bg-[var(--bg-surface)] flex items-center justify-center text-sm font-semibold text-[var(--text-main)]">
-                            {getAvatarUrl(user.avatar) ? (
-                              <img
-                                src={getAvatarUrl(user.avatar)}
-                                alt={user.name || "User"}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              getInitials(user.name, user.email)
+                              {getAvatarUrl(user.avatar) ? (
+                                <img
+                                  src={getAvatarUrl(user.avatar)}
+                                  alt={user.name || "User"}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                getInitials(user.name, user.email)
+                              )}
+                            </div>
+                            <span>{user.name}</span>
+                          </div>
+                        </td>
+                        <td className="p-4 text-slate-600 dark:text-slate-300">
+                          {user.email || "N/A"}
+                        </td>
+                        <td className="p-4">
+                          <span
+                            title={getRoleDescription(user.role)}
+                            className={`badge-soft ${getRoleBadgeClasses(
+                              user.role,
+                            )}`}
+                          >
+                            <RoleIcon size={12} />
+                            {getRoleDisplayName(user.role)}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                                isActive
+                                  ? "bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-700"
+                                  : "bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-900/30 dark:text-rose-200 dark:border-rose-700"
+                              }`}
+                            >
+                              {accountStatus}
+                            </span>
+                            {isAdminRole(currentUser.role) && (
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={isActive}
+                                disabled={!statusToggleAllowed || statusBusy}
+                                onClick={() => handleToggleUserStatus(user)}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                                  isActive ? "bg-emerald-500" : "bg-slate-500"
+                                } ${
+                                  !statusToggleAllowed || statusBusy
+                                    ? "opacity-50 cursor-not-allowed"
+                                    : ""
+                                }`}
+                              >
+                                <span
+                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                                    isActive ? "translate-x-6" : "translate-x-1"
+                                  }`}
+                                />
+                              </button>
                             )}
                           </div>
-                          <span>{user.name}</span>
-                        </div>
-                      </td>
-                      <td className="p-4 text-slate-600 dark:text-slate-300">
-                        {user.email || "N/A"}
-                      </td>
-                      <td className="p-4">
-                        <span
-                          className={`badge-soft ${
-                            user.role === "admin"
-                              ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200"
-                              : "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200"
-                          }`}
-                        >
-                          <Shield size={12} />
-                          {user.role}
-                        </span>
-                      </td>
-                      <td className="p-4 text-slate-700 text-sm">
-                        {user.createdAt
-                          ? new Date(user.createdAt).toLocaleDateString()
-                          : "N/A"}
-                      </td>
-                      <td className="p-4">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleEditUser(user)}
-                            className="px-3 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs rounded-lg shadow-md hover:shadow-lg hover:scale-105 transition-all flex items-center gap-1"
-                          >
-                            <Edit size={13} />
-                            Edit
-                          </button>
-                          <button
-                            onClick={() =>
-                              handleDeleteUser(user._id, user.name)
-                            }
-                            className="px-3 py-1.5 bg-gradient-to-r from-rose-500 to-red-500 text-white text-xs rounded-lg shadow-md hover:shadow-lg hover:scale-105 transition-all flex items-center gap-1"
-                          >
-                            <Trash2 size={13} />
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="p-4 text-slate-700 text-sm">
+                          {user.lastLoginAt
+                            ? new Date(user.lastLoginAt).toLocaleString()
+                            : "Never"}
+                        </td>
+                        <td className="p-4 text-slate-700 text-sm">
+                          {user.createdAt
+                            ? new Date(user.createdAt).toLocaleDateString()
+                            : "N/A"}
+                        </td>
+                        <td className="p-4">
+                          <div className="flex gap-2 items-center">
+                            <button
+                              disabled={editDisabled}
+                              onClick={() => handleEditUser(user)}
+                              className={`px-3 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-xs rounded-lg shadow-md transition-all flex items-center gap-1 ${
+                                editDisabled
+                                  ? "opacity-50 cursor-not-allowed hover:scale-100"
+                                  : "hover:shadow-lg hover:scale-105"
+                              }`}
+                            >
+                              <Edit size={13} />
+                              Edit
+                            </button>
+                            {deleteAllowed ? (
+                              <button
+                                onClick={() =>
+                                  handleDeleteUser(
+                                    user._id,
+                                    user.name || user.email || "User",
+                                  )
+                                }
+                                className="px-3 py-1.5 bg-gradient-to-r from-rose-500 to-red-500 text-white text-xs rounded-lg shadow-md hover:shadow-lg hover:scale-105 transition-all flex items-center gap-1"
+                              >
+                                <Trash2 size={13} />
+                                Delete
+                              </button>
+                            ) : (
+                              <span className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--border-soft)] text-slate-500">
+                                Protected
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -829,8 +1103,9 @@ const AdminManagementPage = () => {
                   }
                   className="form-control w-full px-4 py-3 rounded-lg"
                 >
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
+                  <option value={ROLES.EMPLOYEE}>Employee</option>
+                  <option value={ROLES.MANAGER}>Manager</option>
+                  <option value={ROLES.ADMIN}>Admin</option>
                 </select>
               </div>
 

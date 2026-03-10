@@ -1,9 +1,64 @@
 const PDFDocument = require("pdfkit");
-const Sales = require("../models/Sales");
+const RawSale = require("../models/RawSale");
 const ApiData = require("../models/ApiData");
 const KPI = require("../models/KPI");
 const Data = require("../models/Data");
 const logActivity = require("../utils/logActivity");
+
+function numericExpr(path) {
+  return {
+    $convert: {
+      input: path,
+      to: "double",
+      onError: null,
+      onNull: null,
+    },
+  };
+}
+
+const revenueExpr = {
+  $ifNull: [
+    numericExpr("$pricing.total"),
+    {
+      $ifNull: [
+        numericExpr("$revenue"),
+        {
+          $multiply: [
+            { $ifNull: [numericExpr("$price"), 0] },
+            { $ifNull: [numericExpr("$quantity"), 0] },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+async function loadRecentSalesSnapshot(limit) {
+  return RawSale.aggregate([
+    {
+      $match: {
+        orderStatus: "completed",
+      },
+    },
+    { $sort: { timestamp: -1 } },
+    { $limit: limit },
+    {
+      $project: {
+        _id: 0,
+        date: "$timestamp",
+        product: {
+          $ifNull: ["$product.productName", "Unknown Product"],
+        },
+        quantity: {
+          $ifNull: [numericExpr("$quantity"), 0],
+        },
+        revenue: {
+          $round: [revenueExpr, 2],
+        },
+      },
+    },
+  ]);
+}
 
 // --- Helper Functions for Styling ---
 
@@ -68,7 +123,11 @@ exports.exportPDFWithModules = async (req, res) => {
 
     // Parallel fetching for performance
     const promises = [];
-    if (!modules || modules.sales) promises.push(Sales.find().sort({ date: -1 }).limit(50).then(d => salesData = d));
+    if (!modules || modules.sales) {
+      promises.push(loadRecentSalesSnapshot(50).then((d) => {
+        salesData = d;
+      }));
+    }
     if (!modules || modules.apiData) promises.push(ApiData.find().sort({ fetchedAt: -1 }).limit(50).then(d => apiData = d));
     if (!modules || modules.dataQuality) promises.push(KPI.find().sort({ createdAt: -1 }).limit(20).then(d => kpiData = d));
     if (!modules || modules.csvUpload) promises.push(Data.find().sort({ uploadedAt: -1 }).limit(50).then(d => csvData = d));
@@ -281,7 +340,11 @@ exports.exportExcelWithModules = async (req, res) => {
     let salesData = [], apiData = [], kpiData = [], csvData = [];
 
     const promises = [];
-    if (!modules || modules.sales) promises.push(Sales.find().sort({ date: -1 }).limit(100).then(d => salesData = d));
+    if (!modules || modules.sales) {
+      promises.push(loadRecentSalesSnapshot(100).then((d) => {
+        salesData = d;
+      }));
+    }
     if (!modules || modules.apiData) promises.push(ApiData.find().sort({ fetchedAt: -1 }).limit(100).then(d => apiData = d));
     if (!modules || modules.dataQuality) promises.push(KPI.find().sort({ createdAt: -1 }).limit(50).then(d => kpiData = d));
     if (!modules || modules.csvUpload) promises.push(Data.find().sort({ uploadedAt: -1 }).limit(100).then(d => csvData = d));

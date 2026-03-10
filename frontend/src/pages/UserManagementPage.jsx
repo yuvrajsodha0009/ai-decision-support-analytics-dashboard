@@ -19,7 +19,7 @@ const UserManagementPage = () => {
   const [formData, setFormData] = useState({
     username: "",
     email: "",
-    role: "user",
+    role: "Employee",
     password: "",
   });
 
@@ -52,14 +52,14 @@ const UserManagementPage = () => {
             headers: {
               Authorization: `Bearer ${localStorage.getItem("token")}`,
             },
-          }
+          },
         );
       } else {
         await axios.post("http://localhost:5000/api/auth/register", formData);
       }
       setShowAddModal(false);
       setEditingUser(null);
-      setFormData({ username: "", email: "", role: "user", password: "" });
+      setFormData({ username: "", email: "", role: "Employee", password: "" });
       fetchUsers();
     } catch (error) {
       console.error("Failed to save user", error);
@@ -72,7 +72,12 @@ const UserManagementPage = () => {
     setFormData({
       username: user.username,
       email: user.email || "",
-      role: user.role,
+      role:
+        user.role === "admin"
+          ? "Admin"
+          : user.role === "user"
+            ? "Employee"
+            : user.role,
       password: "",
     });
     setShowAddModal(true);
@@ -95,7 +100,7 @@ const UserManagementPage = () => {
   const closeModal = () => {
     setShowAddModal(false);
     setEditingUser(null);
-    setFormData({ username: "", email: "", role: "user", password: "" });
+    setFormData({ username: "", email: "", role: "Employee", password: "" });
   };
 
   return (
@@ -147,7 +152,10 @@ const UserManagementPage = () => {
                 Admins
               </p>
               <p className="text-3xl font-bold text-slate-900 mt-2">
-                {users.filter((u) => u.role === "admin").length}
+                {
+                  users.filter((u) => u.role === "Admin" || u.role === "admin")
+                    .length
+                }
               </p>
             </div>
             <Shield className="text-cyan-500" size={40} />
@@ -161,7 +169,11 @@ const UserManagementPage = () => {
                 Regular Users
               </p>
               <p className="text-3xl font-bold text-slate-900 mt-2">
-                {users.filter((u) => u.role === "user").length}
+                {
+                  users.filter(
+                    (u) => u.role === "user" || u.role === "Employee",
+                  ).length
+                }
               </p>
             </div>
             <User className="text-green-500" size={40} />
@@ -187,32 +199,43 @@ const UserManagementPage = () => {
               </tr>
             </thead>
             <tbody>
-              {users.map((user, idx) => (
-                <tr
-                  key={user._id}
-                  className="border-b border-slate-100 hover:bg-slate-50 transition"
-                >
-                  <td className="p-4 text-slate-600">{idx + 1}</td>
-                  <td className="p-4 text-slate-900 font-medium">
-                    {user.username}
-                  </td>
-                  <td className="p-4 text-slate-600">{user.email || "N/A"}</td>
-                  <td className="p-4">
-                    <span
-                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
-                        user.role === "admin"
-                          ? "bg-purple-100 text-purple-700 border border-purple-200"
-                          : "bg-slate-100 text-slate-700 border border-slate-200"
-                      }`}
-                    >
-                      {user.role === "admin" ? (
-                        <Shield size={12} />
-                      ) : (
-                        <User size={12} />
-                      )}
-                      {user.role}
-                    </span>
-                  </td>
+              {users.map((user, idx) => {
+                const displayRole =
+                  user.role === "admin"
+                    ? "Admin"
+                    : user.role === "user"
+                      ? "Employee"
+                      : user.role;
+                return (
+                  <tr
+                    key={user._id}
+                    className="border-b border-slate-100 hover:bg-slate-50 transition"
+                  >
+                    <td className="p-4 text-slate-600">{idx + 1}</td>
+                    <td className="p-4 text-slate-900 font-medium">
+                      {user.username}
+                    </td>
+                    <td className="p-4 text-slate-600">{user.email || "N/A"}</td>
+                    <td className="p-4">
+                      <span
+                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
+                          displayRole === "Admin"
+                            ? "bg-purple-100 text-purple-700 border border-purple-200"
+                            : displayRole === "Manager"
+                            ? "bg-cyan-100 text-cyan-700 border border-cyan-200"
+                            : "bg-slate-100 text-slate-700 border border-slate-200"
+                        }`}
+                      >
+                        {displayRole === "Admin" ? (
+                          <Shield size={12} />
+                        ) : displayRole === "Manager" ? (
+                          <Check size={12} />
+                        ) : (
+                          <User size={12} />
+                        )}
+                        {displayRole}
+                      </span>
+                    </td>
                   <td className="p-4 text-slate-600 text-sm">
                     {user.createdAt
                       ? new Date(user.createdAt).toLocaleDateString()
@@ -328,8 +351,9 @@ const UserManagementPage = () => {
                   }
                   className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none"
                 >
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
+                  <option value="Employee">Employee</option>
+                  <option value="Manager">Manager</option>
+                  <option value="Admin">Admin</option>
                 </select>
               </div>
 

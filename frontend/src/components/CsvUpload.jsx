@@ -1,881 +1,902 @@
-import { useEffect, useRef, useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
-import {
-  Upload,
-  FileSpreadsheet,
-  BarChart2,
-  PieChart as PieChartIcon,
-  Filter,
-  Edit,
-  History,
-  Trash,
-  Check,
-  X,
-  Table,
-} from "lucide-react";
 
-// Currency formatter for Rupees
-const formatCurrency = (value) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value);
+const API_BASE = "http://localhost:5000/api/v2/csv";
 
-const colors = [
-  "#f59e0b",
-  "#f97316",
-  "#ef4444",
-  "#22c55e",
-  "#3b82f6",
-  "#a855f7",
-  "#14b8a6",
+const SOURCE_TYPE_OPTIONS = ["sales", "inventory", "customer", "custom"];
+const STANDARD_FIELDS = ["date", "revenue", "quantity", "product", "customer", "region"];
+const MAPPING_OPTIONS = [
+  { value: "ignore", label: "Ignore" },
+  { value: "date", label: "Date" },
+  { value: "revenue", label: "Revenue" },
+  { value: "quantity", label: "Quantity" },
+  { value: "product", label: "Product" },
+  { value: "customer", label: "Customer" },
+  { value: "region", label: "Region" },
 ];
+
+const DEFAULT_SUMMARY = {
+  totalRecords: 0,
+  totalRevenue: null,
+  totalUnits: null,
+  uniqueCustomers: 0,
+  hasRevenue: false,
+  hasQuantity: false,
+  hasCustomer: false,
+};
+
+function formatMetric(value) {
+  if (value === null || value === undefined) return "N/A";
+  if (typeof value === "number") return value.toLocaleString();
+  return String(value);
+}
+
+function buildValidationSignature(mapping, requiredFields) {
+  const mappingPairs = Object.keys(mapping || {})
+    .sort()
+    .map((key) => `${key}:${mapping[key]}`)
+    .join("|");
+  const required = [...(requiredFields || [])].sort().join("|");
+  return `${mappingPairs}::${required}`;
+}
 
 const CsvUpload = () => {
   const [file, setFile] = useState(null);
   const [message, setMessage] = useState("");
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [batches, setBatches] = useState([]);
-  const [selectedBatch, setSelectedBatch] = useState("all");
-  const [filters, setFilters] = useState({ startDate: "", endDate: "" });
-  const [csvSummary, setCsvSummary] = useState(null);
-  const [csvInsights, setCsvInsights] = useState(null);
-  const [editingRow, setEditingRow] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [showHistory, setShowHistory] = useState(false);
-  const chartRef = useRef(null);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const applyDateFilter = (items) => {
-    if (!filters.startDate && !filters.endDate) return items;
-    const start = filters.startDate ? new Date(filters.startDate) : null;
-    const end = filters.endDate ? new Date(filters.endDate) : null;
-    return items.filter((item) => {
-      if (!item.uploadedAt) return true;
-      const d = new Date(item.uploadedAt);
-      if (Number.isNaN(d.getTime())) return true;
-      if (start && d < start) return false;
-      if (end) {
-        const endOfDay = new Date(end);
-        endOfDay.setHours(23, 59, 59, 999);
-        if (d > endOfDay) return false;
-      }
-      return true;
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [isCommitting, setIsCommitting] = useState(false);
+  const [isLoadingRecords, setIsLoadingRecords] = useState(false);
+  const [isDeletingDataset, setIsDeletingDataset] = useState(false);
+  const [isRestoringDataset, setIsRestoringDataset] = useState(false);
+
+  const [uploadSessionId, setUploadSessionId] = useState("");
+  const [uploadedFileName, setUploadedFileName] = useState("");
+  const [headers, setHeaders] = useState([]);
+  const [sampleRows, setSampleRows] = useState([]);
+  const [mapping, setMapping] = useState({});
+  const [suggestions, setSuggestions] = useState({});
+  const [templateMatched, setTemplateMatched] = useState(false);
+
+  const [sourceName, setSourceName] = useState("");
+  const [sourceType, setSourceType] = useState("sales");
+
+  const [requiredFields, setRequiredFields] = useState([]);
+  const [allowInvalidRows, setAllowInvalidRows] = useState(false);
+  const [validationReport, setValidationReport] = useState(null);
+  const [validationSignature, setValidationSignature] = useState("");
+
+  const [sources, setSources] = useState([]);
+  const [selectedSourceId, setSelectedSourceId] = useState("all");
+  const [datasets, setDatasets] = useState([]);
+  const [selectedDatasetId, setSelectedDatasetId] = useState("all");
+  const [includeInactiveDatasets, setIncludeInactiveDatasets] = useState(false);
+
+  const [records, setRecords] = useState([]);
+  const [summary, setSummary] = useState(DEFAULT_SUMMARY);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 50,
+    total: 0,
+    totalPages: 1,
+  });
+
+  const selectedDataset = useMemo(
+    () => datasets.find((dataset) => dataset._id === selectedDatasetId) || null,
+    [datasets, selectedDatasetId]
+  );
+
+  const currentValidationSignature = useMemo(
+    () => buildValidationSignature(mapping, requiredFields),
+    [mapping, requiredFields]
+  );
+
+  const rawColumns = useMemo(() => {
+    const unique = new Set();
+    records.forEach((record) => {
+      Object.keys(record.rawData || {}).forEach((key) => unique.add(key));
     });
-  };
+    return Array.from(unique);
+  }, [records]);
 
-  const fetchData = async (batchOverride) => {
-    const batch = batchOverride ?? selectedBatch;
+  const duplicateMappings = useMemo(() => {
+    const counts = {};
+    Object.values(mapping).forEach((target) => {
+      if (!target || target === "ignore") return;
+      counts[target] = (counts[target] || 0) + 1;
+    });
+    return Object.keys(counts).filter((target) => counts[target] > 1);
+  }, [mapping]);
+
+  const hasDuplicateMappings = duplicateMappings.length > 0;
+
+  useEffect(() => {
+    setValidationReport(null);
+    setValidationSignature("");
+  }, [currentValidationSignature]);
+
+  const fetchSources = async (preferredSourceId) => {
     try {
-      const url =
-        batch && batch !== "all"
-          ? `http://localhost:5000/api/data/batch/${batch}`
-          : "http://localhost:5000/api/data/all";
-      const res = await axios.get(url);
-      const items = Array.isArray(res.data) ? res.data : [];
-      const filtered = applyDateFilter(items);
-      setData(filtered);
-      return items;
+      const response = await axios.get(`${API_BASE}/sources`);
+      const sourceRows = Array.isArray(response.data) ? response.data : [];
+      setSources(sourceRows);
+
+      setSelectedSourceId((previous) => {
+        if (preferredSourceId && sourceRows.some((item) => item._id === preferredSourceId)) {
+          return preferredSourceId;
+        }
+        if (previous !== "all" && sourceRows.some((item) => item._id === previous)) {
+          return previous;
+        }
+        return "all";
+      });
     } catch (error) {
-      console.error("Failed to load data", error);
-      setMessage("Failed to load data");
-      return [];
+      console.error("Failed to load sources", error);
+      setErrorMessage("Failed to load sources");
     }
   };
 
-  const fetchBatches = async () => {
-    try {
-      const res = await axios.get("http://localhost:5000/api/data/batches");
-      // Extract batch IDs from the response objects
-      const batchIds = (res.data || []).map((batch) => batch._id);
-      setBatches(batchIds);
-    } catch (error) {
-      console.error("Failed to load batches", error);
-    }
-  };
-
-  const fetchCsvSummary = async () => {
-    try {
-      const res = await axios.get("http://localhost:5000/api/csv/summary");
-      setCsvSummary(res.data);
-    } catch (error) {
-      console.error("Failed to load CSV summary", error);
-    }
-  };
-
-  const fetchCsvInsights = async () => {
-    try {
-      const res = await axios.get(
-        "http://localhost:5000/api/csv/batch-insights",
-      );
-      setCsvInsights(res.data);
-    } catch (error) {
-      console.error("Failed to load CSV insights", error);
-    }
-  };
-
-  const uploadCsv = async () => {
-    if (!file) {
-      setMessage("Please select a CSV file");
+  const fetchDatasets = async (sourceId, preferredDatasetId, includeInactive = includeInactiveDatasets) => {
+    if (!sourceId || sourceId === "all") {
+      setDatasets([]);
+      setSelectedDatasetId("all");
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      setLoading(true);
-      await axios.post("http://localhost:5000/api/data/upload-csv", formData);
-      setMessage("CSV uploaded successfully (new batch added)");
-      setFile(null);
-      setSelectedBatch("all");
-      await fetchData("all");
-      await fetchBatches();
-      await fetchCsvSummary();
-      await fetchCsvInsights();
-    } catch (error) {
-      console.error("Upload failed", error);
-      setMessage("Upload failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleBatchChange = async (value) => {
-    setSelectedBatch(value);
-    await fetchData(value);
-  };
-
-  const applyFilters = async () => {
-    const items = await fetchData(selectedBatch);
-    setData(applyDateFilter(items));
-  };
-
-  const deleteSelectedBatch = async () => {
-    if (selectedBatch === "all") return;
-    if (!window.confirm("Delete this batch permanently?")) return;
-    try {
-      await axios.delete(
-        `http://localhost:5000/api/data/batch/${selectedBatch}`,
-      );
-      setMessage("Batch deleted successfully");
-      setSelectedBatch("all");
-      await fetchData("all");
-      await fetchBatches();
-      await fetchCsvSummary();
-      await fetchCsvInsights();
-    } catch (error) {
-      console.error("Delete batch failed", error);
-      setMessage("Delete failed");
-    }
-  };
-
-  const deleteData = async (id) => {
-    if (!window.confirm("Delete this record?")) return;
-    try {
-      await axios.delete(`http://localhost:5000/api/data/${id}`);
-      await fetchData(selectedBatch);
-    } catch (error) {
-      console.error("Delete record failed", error);
-      setMessage("Delete failed");
-    }
-  };
-
-  const fetchBatchHistory = async (batchId) => {
-    try {
-      const res = await axios.get(
-        `http://localhost:5000/api/data/batch/${batchId}`,
-      );
-      setHistory(res.data || []);
-      setShowHistory(true);
-    } catch (error) {
-      console.error("Failed to load history", error);
-      setMessage("Unable to load history");
-    }
-  };
-
-  const saveEdit = async () => {
-    if (!editingRow) return;
-    try {
-      await axios.put(`http://localhost:5000/api/data/${editingRow._id}`, {
-        title: editingRow.title,
-        value: editingRow.value,
-        rawData: editingRow.rawData,
-        batchId: editingRow.batchId,
+      const response = await axios.get(`${API_BASE}/datasets`, {
+        params: {
+          sourceId,
+          includeInactive: includeInactive ? "true" : undefined,
+        },
       });
-      setEditingRow(null);
-      await fetchData(selectedBatch);
+
+      const datasetRows = Array.isArray(response.data) ? response.data : [];
+      setDatasets(datasetRows);
+
+      setSelectedDatasetId((previous) => {
+        if (
+          preferredDatasetId &&
+          datasetRows.some((dataset) => dataset._id === preferredDatasetId)
+        ) {
+          return preferredDatasetId;
+        }
+        if (previous !== "all" && datasetRows.some((dataset) => dataset._id === previous)) {
+          return previous;
+        }
+        return "all";
+      });
     } catch (error) {
-      console.error("Save edit failed", error);
-      setMessage("Save failed");
+      console.error("Failed to load datasets", error);
+      setErrorMessage("Failed to load datasets");
     }
   };
 
-  const exportTable = () => {
-    if (!data.length) return;
-    const header = "Title,Value,Category,Batch";
-    const rows = data.map(
-      (d) =>
-        `${d.title},${d.value},${d.rawData?.category || "N/A"},${d.batchId}`,
-    );
-    const csv = [header, ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "csv-data.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+  const fetchRecords = async (sourceId = selectedSourceId, datasetId = selectedDatasetId, page = 1) => {
+    setIsLoadingRecords(true);
+    try {
+      const params = { page, limit: pagination.limit || 50 };
+      if (sourceId && sourceId !== "all") params.sourceId = sourceId;
+      if (datasetId && datasetId !== "all") params.datasetId = datasetId;
+
+      const response = await axios.get(`${API_BASE}/records`, { params });
+      setRecords(Array.isArray(response.data?.records) ? response.data.records : []);
+      setPagination(
+        response.data?.pagination || {
+          page,
+          limit: 50,
+          total: 0,
+          totalPages: 1,
+        }
+      );
+    } catch (error) {
+      console.error("Failed to load records", error);
+      setErrorMessage("Failed to load records");
+      setRecords([]);
+      setPagination((previous) => ({ ...previous, total: 0, totalPages: 1 }));
+    } finally {
+      setIsLoadingRecords(false);
+    }
+  };
+
+  const fetchSummary = async (sourceId = selectedSourceId, datasetId = selectedDatasetId) => {
+    try {
+      const params = {};
+      if (sourceId && sourceId !== "all") params.sourceId = sourceId;
+      if (datasetId && datasetId !== "all") params.datasetId = datasetId;
+
+      const response = await axios.get(`${API_BASE}/analytics/summary`, { params });
+      setSummary({ ...DEFAULT_SUMMARY, ...(response.data || {}) });
+    } catch (error) {
+      console.error("Failed to load analytics summary", error);
+      setErrorMessage("Failed to load analytics summary");
+      setSummary(DEFAULT_SUMMARY);
+    }
+  };
+
+  const handleInitUpload = async () => {
+    setMessage("");
+    setErrorMessage("");
+    setValidationReport(null);
+    setValidationSignature("");
+
+    if (!file) {
+      setErrorMessage("Select a CSV file first");
+      return;
+    }
+
+    try {
+      setIsInitializing(true);
+
+      const formData = new FormData();
+      formData.append("file", file);
+      if (selectedSourceId !== "all") {
+        formData.append("sourceId", selectedSourceId);
+      } else if (sourceName.trim()) {
+        formData.append("sourceName", sourceName.trim());
+        formData.append("sourceType", sourceType);
+      }
+
+      const response = await axios.post(`${API_BASE}/uploads/init`, formData);
+      const nextHeaders = Array.isArray(response.data?.headers) ? response.data.headers : [];
+      const nextSuggestions =
+        response.data?.suggestions && typeof response.data.suggestions === "object"
+          ? response.data.suggestions
+          : {};
+      const nextAutoMapping =
+        response.data?.autoMappedFields && typeof response.data.autoMappedFields === "object"
+          ? response.data.autoMappedFields
+          : {};
+      const nextTemplateMatched = Boolean(response.data?.templateMatched);
+
+      const initialMapping = {};
+      nextHeaders.forEach((header) => {
+        initialMapping[header] = "ignore";
+      });
+
+      if (nextTemplateMatched && Object.keys(nextAutoMapping).length) {
+        Object.entries(nextAutoMapping).forEach(([column, target]) => {
+          if (column in initialMapping) initialMapping[column] = target;
+        });
+      } else {
+        nextHeaders.forEach((header) => {
+          initialMapping[header] = nextSuggestions[header] || "ignore";
+        });
+      }
+
+      setUploadSessionId(response.data?.uploadSessionId || "");
+      setUploadedFileName(response.data?.fileName || file.name);
+      setHeaders(nextHeaders);
+      setSampleRows(Array.isArray(response.data?.sampleRows) ? response.data.sampleRows : []);
+      setSuggestions(nextSuggestions);
+      setTemplateMatched(nextTemplateMatched);
+      setMapping(initialMapping);
+
+      if (nextTemplateMatched) {
+        setMessage("Headers parsed. Matching template found and mapping auto-applied.");
+      } else {
+        setMessage("Headers parsed. Suggestions applied; review mapping and validate.");
+      }
+    } catch (error) {
+      console.error("Upload init failed", error);
+      setErrorMessage(error.response?.data?.message || "Failed to initialize upload");
+    } finally {
+      setIsInitializing(false);
+    }
+  };
+
+  const handleValidateUpload = async () => {
+    setMessage("");
+    setErrorMessage("");
+
+    if (!uploadSessionId) {
+      setErrorMessage("Initialize upload first");
+      return;
+    }
+    if (hasDuplicateMappings) {
+      setErrorMessage("Duplicate standardized mapping targets are not allowed");
+      return;
+    }
+
+    try {
+      setIsValidating(true);
+      const response = await axios.post(`${API_BASE}/uploads/validate`, {
+        uploadSessionId,
+        mapping,
+        requiredFields,
+        allowInvalidRows,
+      });
+      setValidationReport(response.data || null);
+      setValidationSignature(currentValidationSignature);
+      setMessage("Validation completed. Review report before commit.");
+    } catch (error) {
+      console.error("Validation failed", error);
+      setErrorMessage(error.response?.data?.message || "Validation failed");
+      setValidationReport(null);
+      setValidationSignature("");
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const handleCommitUpload = async () => {
+    setMessage("");
+    setErrorMessage("");
+
+    if (!uploadSessionId) {
+      setErrorMessage("Initialize upload first");
+      return;
+    }
+    if (hasDuplicateMappings) {
+      setErrorMessage("Duplicate standardized mapping targets are not allowed");
+      return;
+    }
+
+    if (!validationReport || validationSignature !== currentValidationSignature) {
+      setErrorMessage("Run validation with current mapping before commit");
+      return;
+    }
+
+    try {
+      setIsCommitting(true);
+
+      const payload = {
+        uploadSessionId,
+        mapping,
+        requiredFields,
+        allowInvalidRows,
+      };
+
+      if (selectedSourceId !== "all") {
+        payload.sourceId = selectedSourceId;
+      } else {
+        payload.sourceName = sourceName.trim();
+        payload.sourceType = sourceType;
+      }
+
+      const response = await axios.post(`${API_BASE}/uploads/commit`, payload);
+
+      const nextSourceId = String(response.data?.sourceId || "");
+      const nextDatasetId = String(response.data?.datasetId || "");
+      const inserted = Number(response.data?.inserted || 0);
+      const duplicatesSkipped = Number(response.data?.duplicatesSkipped || 0);
+      const invalidRowsSkipped = Number(response.data?.invalidRowsSkipped || 0);
+
+      setMessage(
+        `Commit successful: inserted ${inserted}, duplicates skipped ${duplicatesSkipped}, invalid rows skipped ${invalidRowsSkipped}.`
+      );
+
+      setFile(null);
+      setUploadSessionId("");
+      setUploadedFileName("");
+      setHeaders([]);
+      setSampleRows([]);
+      setMapping({});
+      setSuggestions({});
+      setTemplateMatched(false);
+      setRequiredFields([]);
+      setAllowInvalidRows(false);
+      setValidationReport(null);
+      setValidationSignature("");
+
+      await fetchSources(nextSourceId);
+      await fetchDatasets(nextSourceId, nextDatasetId, includeInactiveDatasets);
+      await fetchRecords(nextSourceId, nextDatasetId, 1);
+      await fetchSummary(nextSourceId, nextDatasetId);
+    } catch (error) {
+      console.error("Commit failed", error);
+      setErrorMessage(error.response?.data?.message || "Failed to commit upload");
+    } finally {
+      setIsCommitting(false);
+    }
+  };
+
+  const handleSoftDeleteDataset = async () => {
+    if (!selectedDataset || !selectedDataset._id) return;
+    if (!window.confirm("Soft delete selected dataset and its records?")) return;
+
+    try {
+      setIsDeletingDataset(true);
+      await axios.delete(`${API_BASE}/dataset/${selectedDataset._id}`);
+      setMessage("Dataset soft deleted successfully.");
+
+      await fetchDatasets(selectedSourceId, selectedDatasetId, true);
+      await fetchRecords(selectedSourceId, selectedDatasetId, 1);
+      await fetchSummary(selectedSourceId, selectedDatasetId);
+    } catch (error) {
+      console.error("Soft delete failed", error);
+      setErrorMessage(error.response?.data?.message || "Failed to delete dataset");
+    } finally {
+      setIsDeletingDataset(false);
+    }
+  };
+
+  const handleRestoreDataset = async () => {
+    if (!selectedDataset || !selectedDataset._id) return;
+
+    try {
+      setIsRestoringDataset(true);
+      await axios.post(`${API_BASE}/dataset/${selectedDataset._id}/restore`);
+      setMessage("Dataset restored successfully.");
+
+      await fetchDatasets(selectedSourceId, selectedDatasetId, includeInactiveDatasets);
+      await fetchRecords(selectedSourceId, selectedDatasetId, 1);
+      await fetchSummary(selectedSourceId, selectedDatasetId);
+    } catch (error) {
+      console.error("Restore failed", error);
+      setErrorMessage(error.response?.data?.message || "Failed to restore dataset");
+    } finally {
+      setIsRestoringDataset(false);
+    }
   };
 
   useEffect(() => {
-    fetchData("all");
-    fetchBatches();
-    fetchCsvSummary();
-    fetchCsvInsights();
+    fetchSources();
   }, []);
 
-  const batchChartData =
-    csvInsights?.batches?.map((b, i) => ({
-      name: `Batch ${i + 1}`,
-      value: Number(b.totalValue ?? 0),
-      date: b.uploadedAt ? new Date(b.uploadedAt).toLocaleDateString() : "",
-    })) || [];
+  useEffect(() => {
+    if (selectedSourceId === "all") {
+      setDatasets([]);
+      setSelectedDatasetId("all");
+      fetchRecords("all", "all", 1);
+      fetchSummary("all", "all");
+      return;
+    }
 
-  const values = batchChartData.map((b) => b.value);
-  const maxValue = values.length ? Math.max(...values) : 0;
-  const minValue = values.length ? Math.min(...values) : 0;
-  const bestBatch = batchChartData.find((b) => b.value === maxValue);
-  const worstBatch = batchChartData.find((b) => b.value === minValue);
+    fetchDatasets(selectedSourceId, undefined, includeInactiveDatasets);
+    fetchRecords(selectedSourceId, "all", 1);
+    fetchSummary(selectedSourceId, "all");
+  }, [selectedSourceId, includeInactiveDatasets]);
 
-  // Aggregate rows by category for the pie chart (sum values per category)
-  const categoryData = data.reduce((acc, row) => {
-    const category = row.rawData?.category ?? row.title ?? "Uncategorized";
-    const value = Number(row.value ?? 0) || 0;
-    const existing = acc.find((c) => c.name === category);
-    if (existing) existing.value += value;
-    else acc.push({ name: category, value });
-    return acc;
-  }, []);
+  useEffect(() => {
+    if (selectedSourceId === "all") return;
+    fetchRecords(selectedSourceId, selectedDatasetId, 1);
+    fetchSummary(selectedSourceId, selectedDatasetId);
+  }, [selectedDatasetId]);
+
+  const handlePageChange = (nextPage) => {
+    if (nextPage < 1 || nextPage > pagination.totalPages) return;
+    fetchRecords(selectedSourceId, selectedDatasetId, nextPage);
+  };
 
   return (
     <div className="csv-page p-8 min-h-screen">
-      <div className="mb-6 flex flex-wrap items-center gap-4 justify-between">
-        <div className="flex items-center gap-3">
-          <div className="csv-on-accent p-4 bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl shadow-2xl shadow-orange-500/30">
-            <FileSpreadsheet className="text-white" size={32} />
-          </div>
-          <div>
-            <h1 className="csv-title text-4xl font-bold bg-gradient-to-r from-white via-amber-200 to-orange-300 bg-clip-text text-transparent">
-              CSV Data Management
-            </h1>
-            <p className="csv-subtitle text-slate-300 mt-1">
-              Upload, analyze, and manage your CSV datasets
-            </p>
-          </div>
-        </div>
-        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/10 text-amber-200 border border-white/20 shadow-sm">
-          CSV workspace
-        </span>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-white">CSV Ingestion V2</h1>
+        <p className="text-slate-300 mt-2">
+          Production validation, mapping templates, dedupe-safe commits, and lifecycle control.
+        </p>
       </div>
 
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 mb-6">
-        <div className="rounded-2xl border border-amber-300/30 bg-white/5 backdrop-blur shadow-lg p-4 flex items-center justify-between">
+      {message ? (
+        <div className="mb-4 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-emerald-100">
+          {message}
+        </div>
+      ) : null}
+      {errorMessage ? (
+        <div className="mb-4 rounded-lg border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-rose-200">
+          {errorMessage}
+        </div>
+      ) : null}
+
+      <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6">
+        <h2 className="text-xl font-semibold text-white mb-4">Step 1: Parse CSV Headers</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="md:col-span-2">
+            <label className="block text-sm text-slate-300 mb-2">Source Name (for new source)</label>
+            <input
+              type="text"
+              value={sourceName}
+              onChange={(event) => setSourceName(event.target.value)}
+              placeholder="e.g. Sales North"
+              className="w-full border border-white/20 bg-white/5 text-white rounded-lg px-3 py-2"
+            />
+          </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-amber-200 font-semibold">
-              Total Value
-            </p>
-            <p className="text-2xl font-bold text-white mt-1">
-              {formatCurrency(csvSummary?.totalValue ?? 0)}
-            </p>
-          </div>
-          <span className="text-xs px-2 py-1 rounded-full bg-amber-500/20 text-amber-100 border border-amber-400/40">
-            INR
-          </span>
-        </div>
-        <div className="rounded-2xl border border-slate-700 bg-white/5 backdrop-blur shadow-lg p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-300 font-semibold">
-              Batches
-            </p>
-            <p className="text-2xl font-bold text-white mt-1">
-              {batches.length}
-            </p>
-          </div>
-          <span className="text-xs px-2 py-1 rounded-full bg-slate-800 text-slate-200 border border-slate-700">
-            {selectedBatch === "all" ? "All" : "Filtered"}
-          </span>
-        </div>
-        <div className="rounded-2xl border border-emerald-300/30 bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 shadow-lg p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-emerald-200 font-semibold">
-              Records
-            </p>
-            <p className="text-2xl font-bold text-white mt-1">{data.length}</p>
-          </div>
-          <span className="text-xs px-2 py-1 rounded-full bg-white/10 text-emerald-100 border border-emerald-200/40">
-            Live
-          </span>
-        </div>
-      </div>
-
-      {csvSummary && csvInsights && (
-        <div className="csv-on-accent bg-gradient-to-r from-amber-500 to-rose-500 text-white p-6 rounded-2xl shadow-2xl mb-8 border border-amber-600/20 backdrop-blur">
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-lg bg-white/10">
-              <FileSpreadsheet className="text-white" size={20} />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-xl font-bold">CSV Decision Support</h3>
-              <p className="text-sm text-amber-100">
-                Batch-level insights & recommendations
-              </p>
-            </div>
-            <div className="text-sm text-amber-100">
-              Batches: {batches.length}
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="csv-subcard bg-white/10 p-4 rounded-lg">
-              <p className="text-xs uppercase text-amber-100 font-semibold">
-                Total Value
-              </p>
-              <p className="mt-2 text-lg font-bold">
-                {formatCurrency(csvSummary.totalValue ?? 0)}
-              </p>
-            </div>
-
-            <div className="csv-subcard bg-white/10 p-4 rounded-lg">
-              <p className="text-xs uppercase text-amber-100 font-semibold">
-                Best Batch
-              </p>
-              <p className="mt-2 text-lg font-bold">
-                {bestBatch?.name ?? "n/a"}
-              </p>
-            </div>
-
-            <div className="csv-subcard bg-white/10 p-4 rounded-lg">
-              <p className="text-xs uppercase text-amber-100 font-semibold">
-                Worst Batch
-              </p>
-              <p className="mt-2 text-lg font-bold">
-                {worstBatch?.name ?? "n/a"}
-              </p>
-            </div>
-          </div>
-
-          <div className="csv-subcard mt-4 p-3 bg-white/10 rounded-lg text-sm text-amber-50">
-            <div>
-              <strong>Trend:</strong> {csvInsights.trend ?? "n/a"}
-            </div>
-            <div className="mt-2">
-              <strong>Recommendation:</strong>{" "}
-              {csvInsights.recommendation ?? "n/a"}
-            </div>
-          </div>
-
-          {/* PDF export removed per request */}
-        </div>
-      )}
-
-      <div className="bg-white/5 border border-white/10 rounded-2xl shadow-2xl shadow-black/30 mb-8 p-6 backdrop-blur">
-        <div className="flex flex-wrap items-center gap-3 justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Upload size={22} className="text-amber-300" />
-            <h2 className="text-xl font-semibold text-white">
-              Upload CSV File
-            </h2>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={async () => {
-                await fetchData(selectedBatch);
-                await fetchCsvSummary();
-                await fetchCsvInsights();
-                setMessage("Data refreshed successfully");
-              }}
-              className="px-4 py-2 rounded-lg border border-white/20 text-slate-100 text-sm hover:border-amber-300/60 hover:bg-white/5 transition"
-            >
-              Refresh Data
-            </button>
-            <button
-              onClick={async () => {
-                await fetchBatches();
-                setMessage("Batches reloaded successfully");
-              }}
-              className="px-4 py-2 rounded-lg border border-white/20 text-slate-100 text-sm hover:border-amber-300/60 hover:bg-white/5 transition"
-            >
-              Reload Batches
-            </button>
-            <button
-              onClick={deleteSelectedBatch}
-              className="csv-danger px-4 py-2 rounded-lg border text-sm transition disabled:opacity-30 disabled:cursor-not-allowed"
-              disabled={selectedBatch === "all"}
-              title={
-                selectedBatch === "all"
-                  ? "Select a specific batch to delete"
-                  : "Delete selected batch"
-              }
-            >
-              Delete Batch
-            </button>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            type="file"
-            accept=".csv"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="flex-1 min-w-[220px] border border-white/20 bg-white/5 text-slate-100 rounded-lg px-3 py-2 focus:border-amber-300 focus:outline-none transition"
-          />
-          <button
-            onClick={uploadCsv}
-            disabled={loading}
-            className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            <Upload size={20} />
-            {loading ? "Uploading..." : "Upload"}
-          </button>
-        </div>
-        {message && (
-          <p className="mt-3 text-sm text-amber-100 bg-white/10 border border-amber-200/40 px-4 py-3 rounded-lg font-medium">
-            {message}
-          </p>
-        )}
-      </div>
-
-      <div className="bg-white/5 border border-white/10 rounded-2xl shadow-xl shadow-black/20 mb-8 p-6 backdrop-blur">
-        <div className="flex items-center gap-3 mb-4 text-white">
-          <Filter className="text-amber-300" />
-          <h2 className="text-xl font-semibold">Filters</h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="space-y-2 md:col-span-2">
-            <label className="block text-sm text-slate-200/80">
-              Select Batch
-            </label>
+            <label className="block text-sm text-slate-300 mb-2">Source Type</label>
             <select
-              value={selectedBatch}
-              onChange={(e) => handleBatchChange(e.target.value)}
-              className="w-full border border-white/15 bg-white/5 text-white rounded-lg px-3 py-2 focus:border-amber-300 focus:outline-none"
+              value={sourceType}
+              onChange={(event) => setSourceType(event.target.value)}
+              className="w-full border border-white/20 bg-white/5 text-white rounded-lg px-3 py-2"
             >
-              <option value="all" className="bg-slate-900 text-white">
-                All Batches
-              </option>
-              {batches.map((batch, index) => (
-                <option
-                  key={index}
-                  value={batch}
-                  className="bg-slate-900 text-white"
-                >
-                  Batch {batch}
+              {SOURCE_TYPE_OPTIONS.map((option) => (
+                <option key={option} value={option} className="bg-slate-900 text-white">
+                  {option}
                 </option>
               ))}
             </select>
           </div>
-          <div className="space-y-2">
-            <label className="block text-sm text-slate-200/80">
-              Start Date
-            </label>
-            <input
-              type="date"
-              value={filters.startDate}
-              onChange={(e) =>
-                setFilters({ ...filters, startDate: e.target.value })
-              }
-              className="w-full border border-white/15 bg-white/5 text-white rounded-lg px-3 py-2 focus:border-amber-300 focus:outline-none"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="block text-sm text-slate-200/80">End Date</label>
-            <input
-              type="date"
-              value={filters.endDate}
-              onChange={(e) =>
-                setFilters({ ...filters, endDate: e.target.value })
-              }
-              className="w-full border border-white/15 bg-white/5 text-white rounded-lg px-3 py-2 focus:border-amber-300 focus:outline-none"
-            />
-          </div>
         </div>
-        <div className="mt-4 flex gap-3 flex-wrap">
-          <button
-            onClick={applyFilters}
-            className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-semibold rounded-lg hover:shadow-lg transition"
-          >
-            Apply Filters
-          </button>
-          <button
-            onClick={() => {
-              setFilters({ startDate: "", endDate: "" });
-              handleBatchChange("all");
-            }}
-            className="px-4 py-2 border border-white/20 text-white rounded-lg hover:border-amber-300/60 transition"
-          >
-            Reset Filters
-          </button>
-        </div>
-      </div>
 
-      <div
-        ref={chartRef}
-        className="bg-white/5 border border-white/10 rounded-2xl shadow-xl shadow-black/20 mb-8 p-6 backdrop-blur"
-      >
-        <h2 className="text-lg font-semibold text-white mb-4">
-          CSV Batch Trend Analysis
-        </h2>
-        {batchChartData.length === 1 && (
-          <p className="text-sm text-slate-400 mb-2">
-            Upload more CSV files to compare batch performance.
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            type="file"
+            accept=".csv"
+            onChange={(event) => setFile(event.target.files?.[0] || null)}
+            className="flex-1 min-w-[220px] border border-white/20 bg-white/5 text-slate-100 rounded-lg px-3 py-2"
+          />
+          <button
+            onClick={handleInitUpload}
+            disabled={isInitializing}
+            className="px-5 py-2 rounded-lg bg-amber-500 text-slate-900 font-semibold disabled:opacity-50"
+          >
+            {isInitializing ? "Parsing..." : "Parse Headers"}
+          </button>
+        </div>
+
+        {uploadSessionId ? (
+          <p className="text-sm text-slate-300 mt-3">
+            Active session for <span className="font-semibold">{uploadedFileName}</span>
           </p>
-        )}
-        <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={batchChartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--csv-chart-grid)" />
-              <XAxis
-                dataKey="name"
-                stroke="var(--csv-chart-axis)"
-                tick={{ fill: "var(--csv-chart-axis)" }}
-              />
-              <YAxis stroke="var(--csv-chart-axis)" tick={{ fill: "var(--csv-chart-axis)" }} />
-              <Tooltip
-                cursor={{ stroke: "#f97316" }}
-                contentStyle={{
-                  borderRadius: "12px",
-                  border: "1px solid var(--csv-chart-tooltip-border)",
-                  background: "var(--csv-chart-tooltip-bg)",
-                  color: "var(--csv-chart-tooltip-text)",
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="#f97316"
-                strokeWidth={3}
-                dot={{ r: 6 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        ) : null}
+        {templateMatched ? (
+          <p className="text-sm text-emerald-200 mt-2">
+            Mapping template matched and auto-applied.
+          </p>
+        ) : null}
+      </div>
+
+      {headers.length > 0 ? (
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6">
+          <h2 className="text-xl font-semibold text-white mb-4">Step 2: Mapping + Validation + Commit</h2>
+
+          <div className="mb-4">
+            <p className="text-sm text-slate-300 mb-2">Required mapped fields</p>
+            <div className="flex flex-wrap gap-3">
+              {STANDARD_FIELDS.map((field) => (
+                <label key={field} className="text-sm text-slate-200 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={requiredFields.includes(field)}
+                    onChange={() => {
+                      setRequiredFields((previous) =>
+                        previous.includes(field)
+                          ? previous.filter((item) => item !== field)
+                          : [...previous, field]
+                      );
+                    }}
+                  />
+                  {field}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <label className="text-sm text-slate-200 flex items-center gap-2 mb-4">
+            <input
+              type="checkbox"
+              checked={allowInvalidRows}
+              onChange={(event) => setAllowInvalidRows(event.target.checked)}
+            />
+            Allow inserting invalid rows (null-normalized values)
+          </label>
+
+          {hasDuplicateMappings ? (
+            <p className="mb-3 text-sm text-rose-200">
+              Duplicate mapping targets: {duplicateMappings.join(", ")}
+            </p>
+          ) : null}
+
+          <div className="overflow-x-auto overflow-y-auto max-h-[45vh]">
+            <table className="min-w-full text-sm text-slate-100">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-slate-300">
+                  <th className="py-2 px-3">CSV Column</th>
+                  <th className="py-2 px-3">Sample Value</th>
+                  <th className="py-2 px-3">Suggestion</th>
+                  <th className="py-2 px-3">Map To</th>
+                </tr>
+              </thead>
+              <tbody>
+                {headers.map((header) => (
+                  <tr key={header} className="border-t border-white/10">
+                    <td className="py-2 px-3 font-medium">{header}</td>
+                    <td className="py-2 px-3 text-slate-300">{sampleRows[0]?.[header] ?? "-"}</td>
+                    <td className="py-2 px-3 text-cyan-200">{suggestions?.[header] || "ignore"}</td>
+                    <td className="py-2 px-3">
+                      <select
+                        value={mapping[header] || "ignore"}
+                        onChange={(event) =>
+                          setMapping((previous) => ({
+                            ...previous,
+                            [header]: event.target.value,
+                          }))
+                        }
+                        className="w-full border border-white/20 bg-white/5 text-white rounded-lg px-3 py-2"
+                      >
+                        {MAPPING_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value} className="bg-slate-900 text-white">
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              onClick={handleValidateUpload}
+              disabled={isValidating || hasDuplicateMappings}
+              className="px-5 py-2 rounded-lg bg-cyan-500 text-slate-900 font-semibold disabled:opacity-50"
+            >
+              {isValidating ? "Validating..." : "Validate Upload"}
+            </button>
+            <button
+              onClick={handleCommitUpload}
+              disabled={isCommitting || hasDuplicateMappings}
+              className="px-5 py-2 rounded-lg bg-emerald-500 text-slate-900 font-semibold disabled:opacity-50"
+            >
+              {isCommitting ? "Committing..." : "Commit Upload"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {validationReport ? (
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6">
+          <h2 className="text-xl font-semibold text-white mb-4">Validation Report</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+              <p className="text-xs uppercase text-slate-300">Valid Rows</p>
+              <p className="text-lg font-semibold text-emerald-200">{validationReport.validRows || 0}</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+              <p className="text-xs uppercase text-slate-300">Invalid Rows</p>
+              <p className="text-lg font-semibold text-rose-200">{validationReport.invalidRows || 0}</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+              <p className="text-xs uppercase text-slate-300">Empty Rows</p>
+              <p className="text-lg font-semibold text-amber-200">{validationReport.emptyRows || 0}</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+              <p className="text-xs uppercase text-slate-300">Duplicates In File</p>
+              <p className="text-lg font-semibold text-cyan-200">
+                {validationReport.duplicatesInFile || 0}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+              <h3 className="text-sm font-semibold text-white mb-2">Errors</h3>
+              <div className="max-h-48 overflow-y-auto text-xs text-slate-200">
+                {(validationReport.errors || []).slice(0, 20).map((item, index) => (
+                  <p key={`${item.row}-${item.field}-${index}`}>
+                    Row {item.row} - {item.field}: {item.issue}
+                  </p>
+                ))}
+                {(validationReport.errors || []).length === 0 ? <p>No errors</p> : null}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+              <h3 className="text-sm font-semibold text-white mb-2">Normalization Warnings</h3>
+              <div className="max-h-48 overflow-y-auto text-xs text-slate-200">
+                {(validationReport.normalizationWarnings || []).slice(0, 20).map((item, index) => (
+                  <p key={`${item.row}-${item.field}-${index}`}>
+                    Row {item.row} - {item.field}: {item.issue}
+                  </p>
+                ))}
+                {(validationReport.normalizationWarnings || []).length === 0 ? <p>No warnings</p> : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-lg border border-white/10 bg-white/5 p-4 overflow-x-auto">
+            <h3 className="text-sm font-semibold text-white mb-2">Column Metadata</h3>
+            <table className="min-w-full text-xs text-slate-200">
+              <thead>
+                <tr className="text-left text-slate-300">
+                  <th className="py-2 pr-3">Column</th>
+                  <th className="py-2 pr-3">Detected Type</th>
+                  <th className="py-2 pr-3">Mapped To</th>
+                  <th className="py-2 pr-3">Numeric</th>
+                  <th className="py-2 pr-3">Categorical</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(validationReport.columnsMetadata || []).map((column) => (
+                  <tr key={column.name} className="border-t border-white/10">
+                    <td className="py-2 pr-3">{column.name}</td>
+                    <td className="py-2 pr-3">{column.detectedType}</td>
+                    <td className="py-2 pr-3">{column.mappedTo || "-"}</td>
+                    <td className="py-2 pr-3">{column.isNumeric ? "Yes" : "No"}</td>
+                    <td className="py-2 pr-3">{column.isCategorical ? "Yes" : "No"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6">
+        <h2 className="text-xl font-semibold text-white mb-4">Filters + Dataset Lifecycle</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div>
+            <label className="block text-sm text-slate-300 mb-2">Source</label>
+            <select
+              value={selectedSourceId}
+              onChange={(event) => setSelectedSourceId(event.target.value)}
+              className="w-full border border-white/20 bg-white/5 text-white rounded-lg px-3 py-2"
+            >
+              <option value="all" className="bg-slate-900 text-white">
+                All Sources
+              </option>
+              {sources.map((source) => (
+                <option key={source._id} value={source._id} className="bg-slate-900 text-white">
+                  {source.sourceName} ({source.sourceType})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm text-slate-300 mb-2">Dataset</label>
+            <select
+              value={selectedDatasetId}
+              onChange={(event) => setSelectedDatasetId(event.target.value)}
+              className="w-full border border-white/20 bg-white/5 text-white rounded-lg px-3 py-2"
+              disabled={selectedSourceId === "all"}
+            >
+              <option value="all" className="bg-slate-900 text-white">
+                All Datasets
+              </option>
+              {datasets.map((dataset) => (
+                <option key={dataset._id} value={dataset._id} className="bg-slate-900 text-white">
+                  {dataset.fileName} ({dataset.recordCount || 0} rows){dataset.isActive ? "" : " [inactive]"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <label className="text-sm text-slate-200 flex items-end gap-2">
+            <input
+              type="checkbox"
+              checked={includeInactiveDatasets}
+              onChange={(event) => setIncludeInactiveDatasets(event.target.checked)}
+            />
+            Show inactive datasets
+          </label>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleSoftDeleteDataset}
+            disabled={
+              isDeletingDataset ||
+              selectedSourceId === "all" ||
+              selectedDatasetId === "all" ||
+              !selectedDataset?.isActive
+            }
+            className="px-4 py-2 rounded-lg bg-rose-500 text-white font-semibold disabled:opacity-50"
+          >
+            {isDeletingDataset ? "Deleting..." : "Soft Delete Dataset"}
+          </button>
+
+          <button
+            onClick={handleRestoreDataset}
+            disabled={
+              isRestoringDataset ||
+              selectedSourceId === "all" ||
+              selectedDatasetId === "all" ||
+              selectedDataset?.isActive !== false
+            }
+            className="px-4 py-2 rounded-lg bg-indigo-500 text-white font-semibold disabled:opacity-50"
+          >
+            {isRestoringDataset ? "Restoring..." : "Restore Dataset"}
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="p-6 rounded-2xl border border-white/10 bg-white/5 backdrop-blur shadow-xl shadow-black/20">
-          <div className="flex items-center justify-between mb-4 text-white">
-            <div className="flex items-center gap-2">
-              <BarChart2 className="text-amber-300" />
-              <h2 className="text-lg font-semibold">Data Overview</h2>
-            </div>
-            <span className="text-xs px-2 py-1 rounded-full bg-white/10 border border-white/15">
-              Records
-            </span>
-          </div>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={categoryData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--csv-chart-grid)" />
-                <XAxis
-                  dataKey="name"
-                  stroke="var(--csv-chart-axis)"
-                  angle={-25}
-                  textAnchor="end"
-                  height={60}
-                  tick={{ fill: "var(--csv-chart-axis)" }}
-                />
-                <YAxis stroke="var(--csv-chart-axis)" tick={{ fill: "var(--csv-chart-axis)" }} />
-                <Tooltip
-                  cursor={{ fill: "var(--csv-chart-cursor-bg)" }}
-                  contentStyle={{
-                    borderRadius: "12px",
-                    border: "1px solid var(--csv-chart-tooltip-border)",
-                    background: "var(--csv-chart-tooltip-bg)",
-                    color: "var(--csv-chart-tooltip-text)",
-                  }}
-                />
-                <Legend wrapperStyle={{ color: "var(--csv-chart-legend)" }} />
-                <Bar
-                  dataKey="value"
-                  fill="url(#barGradient)"
-                  radius={[10, 10, 0, 0]}
-                />
-                <defs>
-                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#fbbf24" />
-                    <stop offset="100%" stopColor="#f97316" />
-                  </linearGradient>
-                </defs>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-wide text-slate-300">Total Records</p>
+          <p className="text-2xl font-bold text-white mt-1">{formatMetric(summary.totalRecords)}</p>
         </div>
-
-        <div className="p-6 rounded-2xl border border-white/10 bg-white/5 backdrop-blur shadow-xl shadow-black/20">
-          <div className="flex items-center justify-between mb-4 text-white">
-            <div className="flex items-center gap-2">
-              <PieChartIcon className="text-amber-300" />
-              <h2 className="text-lg font-semibold">Category Distribution</h2>
-            </div>
-            <span className="text-xs px-2 py-1 rounded-full bg-white/10 border border-white/15">
-              Category
-            </span>
-          </div>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={90}
-                  fill="#f97316"
-                  label
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={colors[index % colors.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value, name, props) => [
-                    value,
-                    props?.payload?.name ?? props?.payload?.title ?? name,
-                  ]}
-                  contentStyle={{
-                    borderRadius: "12px",
-                    border: "1px solid var(--csv-chart-tooltip-border)",
-                    background: "var(--csv-chart-tooltip-bg)",
-                    color: "var(--csv-chart-tooltip-text)",
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-wide text-slate-300">Total Revenue</p>
+          <p className="text-2xl font-bold text-white mt-1">
+            {summary.hasRevenue ? formatMetric(summary.totalRevenue) : "N/A"}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-wide text-slate-300">Total Units</p>
+          <p className="text-2xl font-bold text-white mt-1">
+            {summary.hasQuantity ? formatMetric(summary.totalUnits) : "N/A"}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-wide text-slate-300">Unique Customers</p>
+          <p className="text-2xl font-bold text-white mt-1">
+            {summary.hasCustomer ? formatMetric(summary.uniqueCustomers) : "N/A"}
+          </p>
         </div>
       </div>
 
-      <div className="p-6 rounded-2xl border border-white/10 bg-white/5 backdrop-blur shadow-2xl shadow-black/25">
-        <div className="flex items-center justify-between mb-4 text-white">
-          <div className="flex items-center gap-2">
-            <Table className="text-amber-300" />
-            <h2 className="text-lg font-semibold">Data Table</h2>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={exportTable}
-              className="px-3 py-2 rounded-lg border border-white/15 text-white text-sm hover:border-amber-300/60 transition"
-            >
-              Export Table
-            </button>
-            <button
-              onClick={() => setShowHistory((v) => !v)}
-              className="px-3 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-semibold text-sm hover:shadow-lg transition"
-            >
-              {showHistory ? "Hide History" : "Show History"}
-            </button>
-          </div>
+      <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-white">Business Records</h2>
+          <span className="text-sm text-slate-300">
+            {pagination.total.toLocaleString()} total rows
+          </span>
         </div>
 
         <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
-          <table className="min-w-full text-slate-100">
+          <table className="min-w-full text-sm text-slate-100">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-slate-300">
-                <th className="py-3 px-4">Title</th>
-                <th className="py-3 px-4">Value</th>
-                <th className="py-3 px-4">Category</th>
-                <th className="py-3 px-4">Batch</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-2 px-3">Uploaded</th>
+                <th className="py-2 px-3">Date</th>
+                <th className="py-2 px-3">Revenue</th>
+                <th className="py-2 px-3">Quantity</th>
+                <th className="py-2 px-3">Product</th>
+                <th className="py-2 px-3">Customer</th>
+                <th className="py-2 px-3">Region</th>
+                {rawColumns.map((column) => (
+                  <th key={column} className="py-2 px-3">
+                    {column}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {data.map((item) => (
-                <tr key={item._id} className="border-t border-white/5 text-sm">
-                  <td className="py-3 px-4 font-medium text-white">
-                    {item.title}
+              {records.map((record) => (
+                <tr key={record._id} className="border-t border-white/10">
+                  <td className="py-2 px-3">
+                    {record.uploadedAt ? new Date(record.uploadedAt).toLocaleString() : "-"}
                   </td>
-                  <td className="py-3 px-4 text-amber-100">{item.value}</td>
-                  <td className="py-3 px-4 text-slate-200">
-                    {item.rawData?.category || "N/A"}
+                  <td className="py-2 px-3">
+                    {record.date ? new Date(record.date).toLocaleDateString() : "-"}
                   </td>
-                  <td className="py-3 px-4 text-slate-200">{item.batchId}</td>
-                  <td className="py-3 px-4">
-                    <div className="flex justify-end gap-2 flex-wrap">
-                      <button
-                        onClick={() => setEditingRow(item)}
-                        className="px-3 py-2 rounded-lg border border-white/15 bg-white/5 text-white hover:border-amber-300/60 flex items-center gap-1 text-xs"
-                      >
-                        <Edit size={14} />
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => fetchBatchHistory(item.batchId)}
-                        className="px-3 py-2 rounded-lg border border-white/15 bg-white/5 text-white hover:border-amber-300/60 flex items-center gap-1 text-xs"
-                      >
-                        <History size={14} />
-                        History
-                      </button>
-                      <button
-                        onClick={() => deleteData(item._id)}
-                        className="csv-danger px-3 py-2 rounded-lg border text-xs flex items-center gap-1 transition"
-                      >
-                        <Trash size={14} />
-                        Delete
-                      </button>
-                    </div>
-                  </td>
+                  <td className="py-2 px-3">{record.revenue ?? "-"}</td>
+                  <td className="py-2 px-3">{record.quantity ?? "-"}</td>
+                  <td className="py-2 px-3">{record.product ?? "-"}</td>
+                  <td className="py-2 px-3">{record.customer ?? "-"}</td>
+                  <td className="py-2 px-3">{record.region ?? "-"}</td>
+                  {rawColumns.map((column) => (
+                    <td key={`${record._id}-${column}`} className="py-2 px-3">
+                      {record.rawData?.[column] ?? "-"}
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>
           </table>
+          {!isLoadingRecords && records.length === 0 ? (
+            <p className="text-center text-slate-300 py-6">No records found for selected filters.</p>
+          ) : null}
+        </div>
+
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-sm text-slate-300">
+            Page {pagination.page} of {pagination.totalPages}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handlePageChange(pagination.page - 1)}
+              disabled={pagination.page <= 1 || isLoadingRecords}
+              className="px-3 py-2 rounded-lg border border-white/20 text-white disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => handlePageChange(pagination.page + 1)}
+              disabled={pagination.page >= pagination.totalPages || isLoadingRecords}
+              className="px-3 py-2 rounded-lg border border-white/20 text-white disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
-
-      {editingRow && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl shadow-2xl w-full max-w-md text-white">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Edit className="text-amber-300" />
-                <h2 className="text-xl font-semibold">Edit Entry</h2>
-              </div>
-              <button
-                onClick={() => setEditingRow(null)}
-                className="text-slate-400 hover:text-amber-200"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={editingRow.title}
-                  onChange={(e) =>
-                    setEditingRow({ ...editingRow, title: e.target.value })
-                  }
-                  className="w-full border border-white/15 bg-white/5 text-white rounded-lg px-3 py-2 focus:border-amber-300 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">
-                  Value
-                </label>
-                <input
-                  type="number"
-                  value={editingRow.value}
-                  onChange={(e) =>
-                    setEditingRow({ ...editingRow, value: e.target.value })
-                  }
-                  className="w-full border border-white/15 bg-white/5 text-white rounded-lg px-3 py-2 focus:border-amber-300 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">
-                  Category
-                </label>
-                <input
-                  type="text"
-                  value={editingRow.rawData?.category || ""}
-                  onChange={(e) =>
-                    setEditingRow({
-                      ...editingRow,
-                      rawData: {
-                        ...editingRow.rawData,
-                        category: e.target.value,
-                      },
-                    })
-                  }
-                  className="w-full border border-white/15 bg-white/5 text-white rounded-lg px-3 py-2 focus:border-amber-300 focus:outline-none"
-                />
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-3 flex-wrap">
-              <button
-                onClick={() => setEditingRow(null)}
-                className="px-4 py-2 border border-white/20 text-white rounded-lg hover:border-amber-300/60 transition flex items-center gap-2"
-              >
-                <X size={16} />
-                Cancel
-              </button>
-              <button
-                onClick={saveEdit}
-                className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-900 font-semibold rounded-lg hover:shadow-lg transition flex items-center gap-2"
-              >
-                <Check size={16} />
-                Save Changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showHistory && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-40 p-4">
-          <div className="bg-slate-900 border border-white/10 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-y-auto text-white p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Batch History</h3>
-              <button
-                onClick={() => setShowHistory(false)}
-                className="text-slate-300 hover:text-amber-200"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            {history.length ? (
-              <table className="w-full text-sm">
-                <thead className="text-left text-xs uppercase text-slate-300">
-                  <tr>
-                    <th className="py-2 pr-3">Title</th>
-                    <th className="py-2 pr-3">Value</th>
-                    <th className="py-2 pr-3">Category</th>
-                    <th className="py-2 pr-3">Batch</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((h) => (
-                    <tr key={h._id} className="border-t border-white/10">
-                      <td className="py-2 pr-3">{h.title}</td>
-                      <td className="py-2 pr-3">{h.value}</td>
-                      <td className="py-2 pr-3">
-                        {h.rawData?.category || "N/A"}
-                      </td>
-                      <td className="py-2 pr-3">{h.batchId}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="text-slate-300">No history available.</p>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

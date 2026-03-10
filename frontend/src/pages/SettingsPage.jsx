@@ -129,7 +129,7 @@ const SettingsPage = () => {
         setProfile({
           name: user.name || "",
           email: user.email || "",
-          role: user.role || "user",
+          role: user.role || "Employee",
           createdAt: user.createdAt || "",
           avatar: user.avatar || "",
         });

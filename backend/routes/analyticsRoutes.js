@@ -1,97 +1,42 @@
 const express = require("express");
-const Data = require("../models/Data");
+const auth = require("../middleware/authMiddleware");
+const {
+  getAnalytics,
+  getAnalyticsSummary,
+  getAnalyticsByCategory,
+  getAnalyticsByRegion,
+  getAnalyticsByDevice,
+  getAnalyticsFilterOptions,
+} = require("../controllers/analyticsController");
+const {
+  getGeoSummary,
+  getGeoMap,
+  getGeoTopRegions,
+  getGeoRevenueTrend,
+  getGeoRegionBar,
+  getGeoCategoryHeatmap,
+  getGeoInsights,
+  getGeoFilterOptions,
+} = require("../controllers/geoAnalyticsController");
 
 const router = express.Router();
 
-/*
-    SUMMARY API (DSS CORE)
-    GET /api/analytics/summary
- */
-router.get("/summary", async (req, res) => {
-  try {
-    const data = await Data.find();
+router.use(auth);
 
-    const totalRevenue = data.reduce((sum, d) => sum + d.value, 0);
-    const totalRecords = data.length;
+router.get("/", getAnalytics);
+router.get("/summary", getAnalyticsSummary);
+router.get("/by-category", getAnalyticsByCategory);
+router.get("/by-region", getAnalyticsByRegion);
+router.get("/by-device", getAnalyticsByDevice);
+router.get("/filter-options", getAnalyticsFilterOptions);
 
-    const productRevenue = {};
-    data.forEach(d => {
-      productRevenue[d.title] = (productRevenue[d.title] || 0) + d.value;
-    });
-
-    const sorted = Object.entries(productRevenue).sort(
-      (a, b) => b[1] - a[1]
-    );
-
-    res.json({
-      totalRevenue,
-      totalRecords,
-      bestProduct: sorted[0]?.[0] || null,
-      worstProduct: sorted[sorted.length - 1]?.[0] || null
-    });
-  } catch (err) {
-    res.status(500).json({ error: "Summary analytics failed" });
-  }
-});
-/**
- * ============================
- * GET /api/analytics/product-wise
- * ============================
- */
-router.get("/product-wise", async (req, res) => {
-  try {
-    const data = await Data.find();
-
-    const result = {};
-    data.forEach(item => {
-      result[item.title] = (result[item.title] || 0) + item.value;
-    });
-
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: "Product analytics failed" });
-  }
-});
-/**
- * ============================
- * GET /api/analytics/insights
- * ============================
- */
-router.get("/insights", async (req, res) => {
-  try {
-    const batches = await Data.aggregate([
-      {
-        $group: {
-          _id: "$batchId",
-          revenue: { $sum: "$value" },
-          uploadedAt: { $max: "$uploadedAt" }
-        }
-      },
-      { $sort: { uploadedAt: 1 } }
-    ]);
-
-    let trend = "Stable";
-
-    if (batches.length >= 2) {
-      const last = batches[batches.length - 1].revenue;
-      const prev = batches[batches.length - 2].revenue;
-
-      if (last > prev) trend = "Increasing";
-      else if (last < prev) trend = "Decreasing";
-    }
-
-    res.json({
-      batches,
-      trend,
-      recommendation:
-        trend === "Increasing"
-          ? "Continue current sales strategy"
-          : "Review pricing, promotion, or product mix"
-    });
-  } catch (err) {
-    res.status(500).json({ error: "Insight analysis failed" });
-  }
-});
+router.get("/geo/summary", getGeoSummary);
+router.get("/geo/map", getGeoMap);
+router.get("/geo/top-regions", getGeoTopRegions);
+router.get("/geo/revenue-trend", getGeoRevenueTrend);
+router.get("/geo/region-bar", getGeoRegionBar);
+router.get("/geo/category-heatmap", getGeoCategoryHeatmap);
+router.get("/geo/insights", getGeoInsights);
+router.get("/geo/filter-options", getGeoFilterOptions);
 
 module.exports = router;
-

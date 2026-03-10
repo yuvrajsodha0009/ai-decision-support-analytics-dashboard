@@ -1,81 +1,183 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Upload, Database, Target, Sparkles, FileText, Activity, Zap, TrendingUp, Users, Settings } from "lucide-react";
+import {
+  Activity,
+  Database,
+  FileText,
+  LayoutDashboard,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Settings,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Upload,
+  X,
+  Zap,
+} from "lucide-react";
 import ProfileDropdown from "./ProfileDropdown";
+import { isAdminRole, normalizeRole, ROLES } from "../utils/roles";
 
-const Sidebar = () => {
-  const role = localStorage.getItem("role") || "user";
+const Sidebar = ({
+  collapsed,
+  setCollapsed,
+  isDesktop,
+  mobileOpen,
+  setMobileOpen,
+}) => {
+  const role = normalizeRole(localStorage.getItem("role") || ROLES.EMPLOYEE);
+  const compact = isDesktop && collapsed;
+
+  const closeMobileMenu = () => {
+    if (!isDesktop) {
+      setMobileOpen(false);
+    }
+  };
+
+  const sidebarVisibility = isDesktop
+    ? "translate-x-0"
+    : mobileOpen
+      ? "translate-x-0"
+      : "-translate-x-full";
+
+  const mainLinks = [
+    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { to: "/csv", label: "CSV Upload", icon: Upload },
+    { to: "/api-data", label: "API Data", icon: Database },
+    { to: "/kpis", label: "KPIs", icon: Target },
+    { to: "/data-cleaning", label: "Data Cleaning", icon: Sparkles },
+    { to: "/reports", label: "Reports", icon: FileText },
+  ];
+
+  const adminLinks = [
+    { to: "/admin", label: "Admin Management", icon: Settings },
+    { to: "/data-quality", label: "Data Quality", icon: Zap },
+    { to: "/activity-log", label: "Activity Audit", icon: Activity },
+    { to: "/admin/sales", label: "Raw Sales", icon: TrendingUp },
+  ];
 
   const linkClass = ({ isActive }) =>
-    `flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 ${
+    `group flex items-center rounded-2xl border px-3 py-3 transition-all duration-200 ease-in-out ${
+      compact ? "justify-center" : "gap-3"
+    } ${
       isActive
-        ? "bg-sky-100 text-slate-900 font-semibold border border-sky-200 shadow-md dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700"
-        : "text-slate-600 border border-transparent hover:bg-sky-100 hover:text-slate-900 hover:border-sky-200 hover:shadow-sm dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white dark:hover:border-slate-700"
+        ? "border-cyan-300/35 bg-gradient-to-r from-cyan-500/25 to-indigo-500/25 text-white shadow-lg shadow-cyan-950/40"
+        : "border-transparent text-slate-300 hover:border-cyan-400/20 hover:bg-slate-800/80 hover:text-white"
     }`;
 
   return (
     <>
-      <aside className="app-sidebar fixed left-0 top-0 z-50 h-screen w-64 bg-[var(--bg-sidebar)] text-[var(--text-main)] flex flex-col p-6 shadow-2xl shadow-black/10 border-r border-[var(--border-soft)] overflow-y-auto scrollbar-hide">
-        <div className="mb-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-lg">
-              <Sparkles className="text-black" size={24} />
+      {!isDesktop && mobileOpen && (
+        <button
+          type="button"
+          aria-label="Close Sidebar Overlay"
+          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[1px]"
+        />
+      )}
+
+      <aside
+        className={`app-sidebar fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.98)_0%,rgba(2,6,23,0.98)_100%)] px-4 py-5 text-slate-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition-all duration-200 ease-in-out lg:translate-x-0 ${
+          compact ? "lg:w-24" : "lg:w-72"
+        } ${isDesktop ? "" : "w-72"} ${sidebarVisibility}`}
+      >
+        <div className="mb-7 flex items-center justify-between">
+          <div
+            className={`flex items-center gap-3 ${compact ? "justify-center" : ""}`}
+          >
+            <div className="rounded-xl border border-cyan-300/30 bg-gradient-to-br from-cyan-400 to-indigo-500 p-2.5 shadow-lg shadow-cyan-500/30">
+              <Sparkles className="text-slate-950" size={18} />
             </div>
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-teal-500 bg-clip-text text-transparent">Analytics</h2>
+            {!compact && (
+              <h2 className="text-xl font-semibold tracking-tight text-white">
+                Analytics OS
+              </h2>
+            )}
           </div>
+
+          {isDesktop ? (
+            <button
+              type="button"
+              onClick={() => setCollapsed((prev) => !prev)}
+              className="rounded-xl border border-white/10 bg-slate-800/60 p-2 text-slate-200 transition-all duration-200 ease-in-out hover:bg-slate-700/70"
+              aria-label={compact ? "Expand Sidebar" : "Collapse Sidebar"}
+            >
+              {compact ? (
+                <PanelLeftOpen size={16} />
+              ) : (
+                <PanelLeftClose size={16} />
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              className="rounded-xl border border-white/10 bg-slate-800/60 p-2 text-slate-200"
+              aria-label="Close Sidebar"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
 
-        <nav className="flex-1 space-y-2">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-2 dark:text-slate-400">Core Modules</div>
-          <NavLink to="/dashboard" className={linkClass}>
-            <LayoutDashboard size={20} />
-            <span>Dashboard</span>
-          </NavLink>
-          <NavLink to="/csv" className={linkClass}>
-            <Upload size={20} />
-            <span>CSV Upload</span>
-          </NavLink>
-          <NavLink to="/api-data" className={linkClass}>
-            <Database size={20} />
-            <span>API Data</span>
-          </NavLink>
-          <NavLink to="/kpis" className={linkClass}>
-            <Target size={20} />
-            <span>KPIs</span>
-          </NavLink>
-          <NavLink to="/data-cleaning" className={linkClass}>
-            <Sparkles size={20} />
-            <span>Data Cleaning</span>
-          </NavLink>
-          <NavLink to="/reports" className={linkClass}>
-            <FileText size={20} />
-            <span>Reports</span>
-          </NavLink>
+        <nav className="scrollbar-hide min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
+          {!compact && (
+            <p className="px-2 pb-1 text-xs uppercase tracking-[0.22em] text-slate-500">
+              Core Modules
+            </p>
+          )}
 
-          {role === "admin" && (
+          {mainLinks.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={closeMobileMenu}
+              className={linkClass}
+              title={compact ? item.label : undefined}
+            >
+              <item.icon size={18} className="shrink-0" />
+              {!compact && (
+                <span className="text-sm font-medium">{item.label}</span>
+              )}
+            </NavLink>
+          ))}
+
+          {isAdminRole(role) && (
             <>
-              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2 mt-6">Management</div>
-              <NavLink to="/admin" className={linkClass}>
-                <Settings size={20} />
-                <span>Admin Management</span>
-              </NavLink>
-              <NavLink to="/data-quality" className={linkClass}>
-                <Zap size={20} />
-                <span>Data Quality</span>
-              </NavLink>
-              <NavLink to="/activity-log" className={linkClass}>
-                <Activity size={20} />
-                <span>Activity Audit</span>
-              </NavLink>
-              <NavLink to="/sales" className={linkClass}>
-                <TrendingUp size={20} />
-                <span>Sales Analytics</span>
-              </NavLink>
+              {!compact && (
+                <p className="mt-4 px-2 pb-1 text-xs uppercase tracking-[0.22em] text-slate-500">
+                  Management
+                </p>
+              )}
+              {adminLinks.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  onClick={closeMobileMenu}
+                  className={linkClass}
+                  title={compact ? item.label : undefined}
+                >
+                  <item.icon size={18} className="shrink-0" />
+                  {!compact && (
+                    <span className="text-sm font-medium">{item.label}</span>
+                  )}
+                </NavLink>
+              ))}
             </>
           )}
         </nav>
 
-        <div className="mt-auto pt-6">
-          <ProfileDropdown variant="sidebar" />
+        <div className={`mt-auto pt-6 ${compact ? "px-1" : ""}`}>
+          {!compact ? (
+            <ProfileDropdown variant="sidebar" />
+          ) : (
+            <NavLink
+              to="/settings"
+              title="Settings"
+              className="flex items-center justify-center rounded-2xl border border-white/10 bg-slate-800/70 py-3 text-slate-200 transition-all duration-200 ease-in-out hover:bg-slate-700/80 hover:text-white"
+            >
+              <Settings size={18} />
+            </NavLink>
+          )}
         </div>
       </aside>
     </>

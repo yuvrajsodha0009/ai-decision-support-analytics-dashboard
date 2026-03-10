@@ -6,16 +6,23 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "migrate:roles": "node Scripts/migrateUserRolesToHierarchy.js",
+    "indexes:rawsales": "node Scripts/createRawSalesIndexes.js",
+    "drop:legacy-sales": "node Scripts/dropLegacySalesCollections.js",
+    "geo:backfill-state": "node Scripts/backfillGeoStateFromCity.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@faker-js/faker": "^10.3.0",
     "@google/generative-ai": "^0.24.1",
+    "@highcharts/map-collection": "^2.3.2",
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
+    "country-state-city": "^3.2.1",
     "csv-parser": "^3.2.0",
     "dotenv": "^17.2.3",
     "exceljs": "^4.4.0",
@@ -25,6 +32,7 @@
     "langchain": "^1.2.11",
     "mongoose": "^9.0.1",
     "multer": "^2.0.2",
+    "node-cron": "^4.2.1",
     "papaparse": "^5.5.3",
     "pdfkit": "^0.17.2",
     "simple-statistics": "^7.8.8",

@@ -8,6 +8,7 @@ import {
   Clock,
   CheckCircle2,
 } from "lucide-react";
+import { normalizeRole, ROLES } from "../utils/roles";
 
 const ActivityLogPage = () => {
   const [logs, setLogs] = useState([]);
@@ -87,7 +88,7 @@ const ActivityLogPage = () => {
 
     if (roleFilter !== "all") {
       filtered = filtered.filter(
-        (log) => (log.userRole || "").toLowerCase() === roleFilter.toLowerCase()
+        (log) => normalizeRole(log.userRole) === normalizeRole(roleFilter)
       );
     }
 
@@ -228,8 +229,9 @@ const ActivityLogPage = () => {
               className="form-control w-full rounded-lg"
             >
               <option value="all">All Roles</option>
-              <option value="admin">Admin</option>
-              <option value="user">User</option>
+              <option value={ROLES.ADMIN}>Admin</option>
+              <option value={ROLES.MANAGER}>Manager</option>
+              <option value={ROLES.EMPLOYEE}>Employee</option>
             </select>
           </div>
 
@@ -341,7 +343,7 @@ const ActivityLogPage = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
-                      {(log.userRole || "N/A").toString().toUpperCase()}
+                      {log.userRole ? normalizeRole(log.userRole) : "N/A"}
                     </td>
                     <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
                       <div className="flex items-center gap-2">

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { ChevronDown, LogOut, Settings, Shield } from "lucide-react";
+import { isAdminRole, normalizeRole, ROLES } from "../utils/roles";
 
 const getInitials = (name, email) => {
   const trimmed = (name || "").trim();
@@ -23,7 +24,7 @@ const ProfileDropdown = ({ variant = "top" }) => {
   const [userInfo, setUserInfo] = useState({
     name: "",
     email: "",
-    role: "user",
+    role: ROLES.EMPLOYEE,
     avatar: "",
   });
 
@@ -31,7 +32,7 @@ const ProfileDropdown = ({ variant = "top" }) => {
     const readLocal = () => {
       const name = localStorage.getItem("userName") || "";
       const email = localStorage.getItem("userEmail") || "";
-      const role = localStorage.getItem("role") || "user";
+      const role = normalizeRole(localStorage.getItem("role") || ROLES.EMPLOYEE);
       const avatar = localStorage.getItem("userAvatar") || "";
       setUserInfo({ name, email, role, avatar });
       return { name, email, role, avatar };
@@ -51,7 +52,7 @@ const ProfileDropdown = ({ variant = "top" }) => {
           const next = {
             name: user.name || "",
             email: user.email || "",
-            role: user.role || "user",
+            role: normalizeRole(user.role || ROLES.EMPLOYEE),
             avatar: user.avatar || "",
           };
           setUserInfo(next);
@@ -103,6 +104,7 @@ const ProfileDropdown = ({ variant = "top" }) => {
   }, [open]);
 
   const handleLogout = () => {
+    delete axios.defaults.headers.common["Authorization"];
     localStorage.removeItem("token");
     localStorage.removeItem("role");
     localStorage.removeItem("userName");
@@ -196,7 +198,7 @@ const ProfileDropdown = ({ variant = "top" }) => {
           Settings
         </button>
 
-        {userInfo.role === "admin" && (
+        {isAdminRole(userInfo.role) && (
           <button
             type="button"
             onClick={() => {

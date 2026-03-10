@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { me } from "../Services/authApi";
+import { isAdminRole, normalizeRole, ROLES } from "../utils/roles";
 
 const PrivateRoute = ({ children, requireAdmin = false }) => {
   const [loading, setLoading] = useState(true);
@@ -24,8 +25,8 @@ const PrivateRoute = ({ children, requireAdmin = false }) => {
   if (loading) return <div className="p-8">Checking authentication...</div>;
   if (!ok) return <Navigate to="/auth" replace />;
 
-  const role = localStorage.getItem("role") || "user";
-  if (requireAdmin && role !== "admin") {
+  const role = normalizeRole(localStorage.getItem("role") || ROLES.EMPLOYEE);
+  if (requireAdmin && !isAdminRole(role)) {
     return <Navigate to="/dashboard" replace />;
   }
 

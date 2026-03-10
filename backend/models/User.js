@@ -21,10 +21,29 @@ const userSchema = new mongoose.Schema(
       required: [true, 'Password is required'],
       minlength: [6, 'Password must be at least 6 characters long']
     },
+    // Canonical RBAC hierarchy.
     role: {
       type: String,
-      enum: ['user', 'admin'],
-      default: 'user'
+      enum: ['Employee', 'Manager', 'Admin'],
+      default: 'Employee',
+      required: true
+    },
+    accountStatus: {
+      type: String,
+      enum: ["Active", "Suspended"],
+      default: "Active",
+      required: true,
+    },
+    lastLoginAt: {
+      type: Date,
+      default: null,
+    },
+    // Optional company scoping (nullable). No Company model scaffolded here—nullable keeps compatibility.
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Company',
+      required: false,
+      default: null
     },
     avatar: {
       type: String,

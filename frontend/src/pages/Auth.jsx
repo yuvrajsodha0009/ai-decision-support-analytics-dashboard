@@ -93,7 +93,7 @@ const Auth = () => {
       localStorage.setItem("token", token);
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
-      const userRole = res.data?.user?.role || "user";
+      const userRole = res.data?.user?.role || "Employee";
       const userName = res.data?.user?.name || "";
       const userEmail = res.data?.user?.email || email.trim().toLowerCase();
       localStorage.setItem("role", userRole);
@@ -198,7 +198,7 @@ const Auth = () => {
                 }`}
                 disabled={loading}
               >
-                User
+                Employee
               </button>
               <button
                 type="button"
@@ -248,7 +248,7 @@ const Auth = () => {
                 Email Address
               </label>
               <input
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300 disabled:opacity-50 backdrop-blur-sm"
+                className="auth-fixed-input w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300 disabled:opacity-50 backdrop-blur-sm"
                 placeholder="Enter your email"
                 type="email"
                 value={email}
@@ -264,7 +264,7 @@ const Auth = () => {
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
-                  className="w-full px-4 py-3 pr-12 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300 disabled:opacity-50 backdrop-blur-sm"
+                  className="auth-fixed-input w-full px-4 py-3 pr-12 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300 disabled:opacity-50 backdrop-blur-sm"
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

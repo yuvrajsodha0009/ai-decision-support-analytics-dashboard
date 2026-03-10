@@ -6,6 +6,10 @@ require("dotenv").config();
 const connectDB = require("./config/db");
 const bcrypt = require("bcryptjs");
 const User = require("./models/User");
+const { ROLES, normalizeRole } = require("./utils/roles");
+const {
+  migrateUserRolesToHierarchy,
+} = require("./Scripts/migrateUserRolesToHierarchy");
 
 const app = express();
 
@@ -23,12 +27,16 @@ app.use("/api/activity", require("./routes/activityRoutes"));
 
 // Core data
 app.use("/api/data", require("./routes/dataRoutes"));
-app.use("/api", require("./routes/salesRoutes"));
 
 // Analytics
-app.use("/api/analytics", require("./routes/analyticsRoutes"));      // CSV / Sales
-app.use("/api", require("./routes/csvAnalyticsRoutes"));             // CSV helpers
-app.use("/api", require("./routes/apiDataRoutes"));                  // API DSS
+app.use("/api/analytics", require("./routes/analyticsRoutes")); // Rawsales analytics
+app.use("/api", require("./routes/mapAnalyticsRoutes")); // Map drill-down analytics
+app.use("/api", require("./routes/mapGeoJsonRoutes")); // Map geometry proxy
+app.use("/api", require("./routes/categoryAnalytics")); // Category drill-down analytics
+app.use("/api", require("./routes/csvAnalyticsRoutes")); // CSV helpers
+app.use("/api/v2/csv", require("./routes/csvRoutes")); // Flexible CSV ingestion + analytics
+app.use("/api", require("./routes/apiDataRoutes")); // API DSS
+app.use("/api/admin/sales", require("./routes/adminSalesRoutes")); // Admin raw sales view/export
 
 // Utilities
 app.use("/api/kpis", require("./routes/kpiRoutes"));
@@ -40,6 +48,9 @@ app.use("/api/reports", require("./routes/reportRoutes"));
 
 connectDB()
   .then(async () => {
+    const migrationSummary = await migrateUserRolesToHierarchy();
+    console.log("[startup] Role migration summary:", migrationSummary);
+
     const adminEmail = "admin@gmail.com";
     const adminPassword = "admin123";
 
@@ -51,24 +62,24 @@ connectDB()
         name: "Admin",
         email: adminEmail,
         password: hashedPassword,
-        role: "admin",
+        role: ROLES.ADMIN,
       });
-      console.log("✅ Default admin created");
+      console.log("[startup] Default admin created");
     } else if (!(await bcrypt.compare(adminPassword, adminUser.password))) {
       adminUser.password = hashedPassword;
       await adminUser.save();
-      console.log("✅ Default admin password reset");
+      console.log("[startup] Default admin password reset");
     }
 
-    if (adminUser && adminUser.role !== "admin") {
-      adminUser.role = "admin";
+    if (adminUser && normalizeRole(adminUser.role) !== ROLES.ADMIN) {
+      adminUser.role = ROLES.ADMIN;
       await adminUser.save();
-      console.log("âœ… Default admin role upgraded");
+      console.log("[startup] Default admin role set to Admin");
     }
 
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () =>
-      console.log(`🚀 Backend running on port ${PORT}`)
+      console.log(`[startup] Backend running on port ${PORT}`)
     );
   })
-  .catch(err => console.error("❌ DB connection failed", err));
+  .catch((err) => console.error("[startup] DB connection failed", err));

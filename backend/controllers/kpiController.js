@@ -1,8 +1,38 @@
 const KPI = require("../models/KPI");
 const Data = require("../models/Data");
 const ApiData = require("../models/ApiData");
-const Sales = require("../models/Sales");
+const RawSale = require("../models/RawSale");
 const logActivity = require("../utils/logActivity");
+
+function numericExpr(path) {
+  return {
+    $convert: {
+      input: path,
+      to: "double",
+      onError: null,
+      onNull: null,
+    },
+  };
+}
+
+const revenueExpr = {
+  $ifNull: [
+    numericExpr("$pricing.total"),
+    {
+      $ifNull: [
+        numericExpr("$revenue"),
+        {
+          $multiply: [
+            { $ifNull: [numericExpr("$price"), 0] },
+            { $ifNull: [numericExpr("$quantity"), 0] },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+const quantityExpr = { $ifNull: [numericExpr("$quantity"), 0] };
 
 /* ================= CREATE KPI ================= */
 exports.createKPI = async (req, res) => {
@@ -43,6 +73,8 @@ exports.computeKPIs = async (req, res) => {
     for (const kpi of kpis) {
       let Model;
       let query = {};
+      let value = 0;
+      const operation = String(kpi.operation || "").toUpperCase();
 
       if (kpi.source === "csv") {
         Model = Data;
@@ -55,39 +87,79 @@ exports.computeKPIs = async (req, res) => {
       }
 
       if (kpi.source === "database") {
-        Model = Sales;
-      }
+        const normalizedField = String(kpi.field || "").toLowerCase();
+        if (normalizedField !== "quantity" && normalizedField !== "revenue") {
+          return res.status(400).json({
+            message: `Unsupported rawsales field: ${kpi.field}`,
+          });
+        }
 
-      const docs = await Model.find(query);
+        const metricExpr = normalizedField === "quantity" ? quantityExpr : revenueExpr;
+        const match = { orderStatus: "completed" };
 
-      let values = [];
-      if (kpi.operation !== "COUNT") {
-        values = docs.map(d => {
+        if (operation === "COUNT") {
+          value = await RawSale.countDocuments(match);
+        } else {
+          const accumulatorByOperation = {
+            SUM: { $sum: metricExpr },
+            AVG: { $avg: metricExpr },
+            MIN: { $min: metricExpr },
+            MAX: { $max: metricExpr },
+          };
+          const accumulator = accumulatorByOperation[operation];
+          if (!accumulator) {
+            return res.status(400).json({
+              message: `Unsupported operation for rawsales: ${kpi.operation}`,
+            });
+          }
+
+          const aggregated = await RawSale.aggregate([
+            { $match: match },
+            {
+              $group: {
+                _id: null,
+                value: accumulator,
+              },
+            },
+          ]);
+
+          value = Number(aggregated[0]?.value || 0);
+        }
+      } else {
+        if (!Model) {
+          return res.status(400).json({
+            message: `Unsupported KPI source: ${kpi.source}`,
+          });
+        }
+
+        const docs = await Model.find(query);
+        const values = docs.map((d) => {
           const num = Number(d[kpi.field]);
-          return isNaN(num) ? 0 : num;
+          return Number.isNaN(num) ? 0 : num;
         });
-      }
 
-      let value = 0;
-
-      switch (kpi.operation) {
-        case "SUM":
-          value = values.reduce((a, b) => a + b, 0);
-          break;
-        case "AVG":
-          value = values.length
-            ? values.reduce((a, b) => a + b, 0) / values.length
-            : 0;
-          break;
-        case "MIN":
-          value = values.length ? Math.min(...values) : 0;
-          break;
-        case "MAX":
-          value = values.length ? Math.max(...values) : 0;
-          break;
-        case "COUNT":
-          value = docs.length;
-          break;
+        switch (operation) {
+          case "SUM":
+            value = values.reduce((a, b) => a + b, 0);
+            break;
+          case "AVG":
+            value = values.length
+              ? values.reduce((a, b) => a + b, 0) / values.length
+              : 0;
+            break;
+          case "MIN":
+            value = values.length ? Math.min(...values) : 0;
+            break;
+          case "MAX":
+            value = values.length ? Math.max(...values) : 0;
+            break;
+          case "COUNT":
+            value = docs.length;
+            break;
+          default:
+            value = 0;
+            break;
+        }
       }
 
       results.push({
