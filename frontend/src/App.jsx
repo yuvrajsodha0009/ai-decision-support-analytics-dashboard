@@ -12,10 +12,11 @@ import KPIPage from "./pages/kpiPage";
 import DataCleaningPage from "./pages/DataCleaningPage";
 import ReportPage from "./pages/ReportPage";
 import AdminManagementPage from "./pages/AdminManagementPage";
-import DataQualityPage from "./pages/DataQualityPage";
 import ActivityLogPage from "./pages/ActivityLogPage";
 import AdminSalesPage from "./pages/AdminSalesPage";
 import MapAnalytics from "./pages/MapAnalytics";
+
+const SHOW_API_DATA_MODULE = false;
 
 function App() {
   return (
@@ -83,7 +84,11 @@ function App() {
             path="/api-data"
             element={
               <PrivateRoute>
-                <ApiData />
+                {SHOW_API_DATA_MODULE ? (
+                  <ApiData />
+                ) : (
+                  <Navigate to="/dashboard" replace />
+                )}
               </PrivateRoute>
             }
           />
@@ -120,15 +125,6 @@ function App() {
             element={
               <PrivateRoute requireAdmin>
                 <AdminManagementPage />
-              </PrivateRoute>
-            }
-          />
-
-          <Route
-            path="/data-quality"
-            element={
-              <PrivateRoute requireAdmin>
-                <DataQualityPage />
               </PrivateRoute>
             }
           />

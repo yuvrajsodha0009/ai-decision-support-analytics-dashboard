@@ -12,10 +12,11 @@ import {
   TrendingUp,
   Upload,
   X,
-  Zap,
 } from "lucide-react";
 import ProfileDropdown from "./ProfileDropdown";
 import { isAdminRole, normalizeRole, ROLES } from "../utils/roles";
+
+const SHOW_API_DATA_MODULE = false;
 
 const Sidebar = ({
   collapsed,
@@ -42,7 +43,9 @@ const Sidebar = ({
   const mainLinks = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/csv", label: "CSV Upload", icon: Upload },
-    { to: "/api-data", label: "API Data", icon: Database },
+    ...(SHOW_API_DATA_MODULE
+      ? [{ to: "/api-data", label: "API Data", icon: Database }]
+      : []),
     { to: "/kpis", label: "KPIs", icon: Target },
     { to: "/data-cleaning", label: "Data Cleaning", icon: Sparkles },
     { to: "/reports", label: "Reports", icon: FileText },
@@ -50,7 +53,6 @@ const Sidebar = ({
 
   const adminLinks = [
     { to: "/admin", label: "Admin Management", icon: Settings },
-    { to: "/data-quality", label: "Data Quality", icon: Zap },
     { to: "/activity-log", label: "Activity Audit", icon: Activity },
     { to: "/admin/sales", label: "Raw Sales", icon: TrendingUp },
   ];
