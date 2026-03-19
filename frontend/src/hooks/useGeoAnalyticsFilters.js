@@ -130,6 +130,7 @@ export const useGeoAnalyticsFilters = () => {
         {
           start: range.start,
           end: range.end,
+          groupBy: preset === "today" ? "hour" : "day",
         },
         {
           persistDateRange: true,

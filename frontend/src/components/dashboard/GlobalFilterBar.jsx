@@ -66,7 +66,7 @@ const GlobalFilterBar = ({ options, loading, showCompareToggle = true }) => {
       start: range.start,
       end: range.end,
       mapDateRange: preset,
-      groupBy: preset === "today" ? "hour" : previous.groupBy,
+      groupBy: preset === "today" ? "hour" : "day",
     }));
   };
 

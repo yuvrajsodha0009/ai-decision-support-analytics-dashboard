@@ -27,8 +27,12 @@ const pickBaseParams = (filters) => ({
   start: filters.start,
   end: filters.end,
   timezone: filters.timezone,
-  groupBy: filters.groupBy,
+  groupBy:
+    filters.mapDateRange === "today"
+      ? "hour"
+      : filters.groupBy || "day",
   metric: filters.metric,
+  mapDateRange: filters.mapDateRange,
   level: filters.level,
   region: filters.region,
   country: filters.country,
@@ -70,28 +74,49 @@ export const useGeoAnalyticsQueries = (filters, enabled = true) => {
   const baseParams = useMemo(() => pickBaseParams(filters), [filters]);
   const debouncedParams = useDebouncedValue(baseParams, 350);
 
+  const effectiveDebouncedParams = useMemo(() => {
+    if (debouncedParams.mapDateRange !== "today" || debouncedParams.groupBy !== "hour") {
+      return debouncedParams;
+    }
+
+    const rawEnd = new Date(debouncedParams.end);
+    if (Number.isNaN(rawEnd.getTime())) return debouncedParams;
+
+    const clampedEnd = new Date(Math.min(rawEnd.getTime(), Date.now())).toISOString();
+    return {
+      ...debouncedParams,
+      end: clampedEnd,
+    };
+  }, [debouncedParams]);
+
   const mapLevel =
-    debouncedParams.level !== "world" && debouncedParams.country ? "country" : "world";
+    effectiveDebouncedParams.level !== "world" && effectiveDebouncedParams.country
+      ? "country"
+      : "world";
 
   const mapParams = useMemo(
     () => ({
       ...debouncedParams,
+      ...effectiveDebouncedParams,
       level: mapLevel,
       state: "",
       city: "",
       limit: 300,
     }),
-    [debouncedParams, mapLevel]
+    [effectiveDebouncedParams, mapLevel]
   );
 
   const previousTrendParams = useMemo(() => {
-    const previousRange = buildPreviousRange(debouncedParams.start, debouncedParams.end);
+    const previousRange = buildPreviousRange(
+      effectiveDebouncedParams.start,
+      effectiveDebouncedParams.end,
+    );
     return {
-      ...debouncedParams,
+      ...effectiveDebouncedParams,
       ...previousRange,
-      groupBy: debouncedParams.groupBy || "day",
+      groupBy: effectiveDebouncedParams.groupBy || "day",
     };
-  }, [debouncedParams]);
+  }, [effectiveDebouncedParams]);
 
   const canQueryHierarchy = useMemo(
     () => hasHierarchyContext(debouncedParams),
@@ -99,16 +124,16 @@ export const useGeoAnalyticsQueries = (filters, enabled = true) => {
   );
 
   const optionsQuery = useQuery({
-    queryKey: ["geoAnalytics", "filter-options", debouncedParams],
-    queryFn: () => fetchGeoFilterOptions({ ...debouncedParams, level: "world" }),
+    queryKey: ["geoAnalytics", "filter-options", effectiveDebouncedParams],
+    queryFn: () => fetchGeoFilterOptions({ ...effectiveDebouncedParams, level: "world" }),
     enabled,
     ...QUERY_PLACEHOLDER,
     staleTime: 2 * 60 * 1000,
   });
 
   const summaryQuery = useQuery({
-    queryKey: ["geoAnalytics", "summary", debouncedParams],
-    queryFn: () => fetchGeoSummary(debouncedParams),
+    queryKey: ["geoAnalytics", "summary", effectiveDebouncedParams],
+    queryFn: () => fetchGeoSummary(effectiveDebouncedParams),
     enabled: enabled && canQueryHierarchy,
     ...QUERY_PLACEHOLDER,
   });
@@ -121,16 +146,19 @@ export const useGeoAnalyticsQueries = (filters, enabled = true) => {
   });
 
   const topRegionsQuery = useQuery({
-    queryKey: ["geoAnalytics", "top-regions", debouncedParams],
-    queryFn: () => fetchGeoTopRegions({ ...debouncedParams, limit: 10 }),
+    queryKey: ["geoAnalytics", "top-regions", effectiveDebouncedParams],
+    queryFn: () => fetchGeoTopRegions({ ...effectiveDebouncedParams, limit: 10 }),
     enabled: enabled && canQueryHierarchy,
     ...QUERY_PLACEHOLDER,
   });
 
   const revenueTrendQuery = useQuery({
-    queryKey: ["geoAnalytics", "revenue-trend", debouncedParams],
+    queryKey: ["geoAnalytics", "revenue-trend", effectiveDebouncedParams],
     queryFn: () =>
-      fetchGeoRevenueTrend({ ...debouncedParams, groupBy: debouncedParams.groupBy || "day" }),
+      fetchGeoRevenueTrend({
+        ...effectiveDebouncedParams,
+        groupBy: effectiveDebouncedParams.groupBy || "day",
+      }),
     enabled: enabled && canQueryHierarchy,
     ...QUERY_PLACEHOLDER,
   });
@@ -143,29 +171,29 @@ export const useGeoAnalyticsQueries = (filters, enabled = true) => {
   });
 
   const regionBarQuery = useQuery({
-    queryKey: ["geoAnalytics", "region-bar", debouncedParams],
-    queryFn: () => fetchGeoRegionBar({ ...debouncedParams, limit: 8 }),
+    queryKey: ["geoAnalytics", "region-bar", effectiveDebouncedParams],
+    queryFn: () => fetchGeoRegionBar({ ...effectiveDebouncedParams, limit: 8 }),
     enabled: enabled && canQueryHierarchy,
     ...QUERY_PLACEHOLDER,
   });
 
   const categoryHeatmapQuery = useQuery({
-    queryKey: ["geoAnalytics", "category-heatmap", debouncedParams],
-    queryFn: () => fetchGeoCategoryHeatmap(debouncedParams),
+    queryKey: ["geoAnalytics", "category-heatmap", effectiveDebouncedParams],
+    queryFn: () => fetchGeoCategoryHeatmap(effectiveDebouncedParams),
     enabled: enabled && canQueryHierarchy,
     ...QUERY_PLACEHOLDER,
   });
 
   const insightsQuery = useQuery({
-    queryKey: ["geoAnalytics", "insights", debouncedParams],
-    queryFn: () => fetchGeoInsights({ ...debouncedParams, limit: 12 }),
+    queryKey: ["geoAnalytics", "insights", effectiveDebouncedParams],
+    queryFn: () => fetchGeoInsights({ ...effectiveDebouncedParams, limit: 12 }),
     enabled: enabled && canQueryHierarchy,
     ...QUERY_PLACEHOLDER,
   });
 
   return {
     mapLevel,
-    debouncedParams,
+    debouncedParams: effectiveDebouncedParams,
     optionsQuery,
     summaryQuery,
     mapQuery,

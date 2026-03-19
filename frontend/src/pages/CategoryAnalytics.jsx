@@ -111,20 +111,22 @@ const getNextSortDirection = (currentSort, key) => {
   return currentSort.direction === "asc" ? "desc" : "asc";
 };
 
-const formatDateTick = (value, groupBy) => {
+const formatDateTick = (value, groupBy, timeZone = "UTC") => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
 
   if (groupBy === "hour") {
-    return parsed.toLocaleString("en-IN", {
-      month: "short",
-      day: "2-digit",
-      hour: "2-digit",
+    return parsed.toLocaleTimeString("en-IN", {
+      timeZone,
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
     });
   }
 
   if (groupBy === "month") {
     return parsed.toLocaleDateString("en-IN", {
+      timeZone,
       month: "short",
       year: "numeric",
     });
@@ -132,12 +134,14 @@ const formatDateTick = (value, groupBy) => {
 
   if (groupBy === "week") {
     return `Wk ${parsed.toLocaleDateString("en-IN", {
+      timeZone,
       month: "short",
       day: "2-digit",
     })}`;
   }
 
   return parsed.toLocaleDateString("en-IN", {
+    timeZone,
     month: "short",
     day: "2-digit",
   });
@@ -148,12 +152,14 @@ const CategoryAnalytics = () => {
   const { categoryName } = useParams();
   const { filters, isHydrated, applyFilterPatch } = useAnalyticsFilters();
 
-  const allowedGroupBy = new Set(["day", "week", "month"]);
-  const initialGroupBy = allowedGroupBy.has(filters.groupBy) ? filters.groupBy : "day";
+  const allowedGroupBy = new Set(["hour", "day", "week", "month"]);
+  const initialGroupBy = allowedGroupBy.has(filters.groupBy)
+    ? filters.groupBy
+    : "day";
 
   const categoryLabel = useMemo(
     () => decodeCategory(categoryName).trim(),
-    [categoryName]
+    [categoryName],
   );
 
   const [chartData, setChartData] = useState([]);
@@ -171,13 +177,13 @@ const CategoryAnalytics = () => {
   const [localGroupBy, setLocalGroupBy] = useState(initialGroupBy);
   const [hoveredSubcategory, setHoveredSubcategory] = useState("");
   const [selectedDateRangePreset, setSelectedDateRangePreset] = useState(() =>
-    getPresetFromRange(filters.start, filters.end)
+    getPresetFromRange(filters.start, filters.end),
   );
   const [customStartDate, setCustomStartDate] = useState(() =>
-    toDateInputValue(filters.start)
+    toDateInputValue(filters.start),
   );
   const [customEndDate, setCustomEndDate] = useState(() =>
-    toDateInputValue(filters.end)
+    toDateInputValue(filters.end),
   );
   const [chartType, setChartType] = useState("line");
   const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(true);
@@ -186,15 +192,40 @@ const CategoryAnalytics = () => {
   const [categoriesError, setCategoriesError] = useState("");
   const [showTotalSeries, setShowTotalSeries] = useState(false);
 
+  const effectiveEnd = useMemo(() => {
+    if (selectedDateRangePreset !== "today" || localGroupBy !== "hour") {
+      return filters.end;
+    }
+
+    const rawEnd = new Date(filters.end);
+    if (Number.isNaN(rawEnd.getTime())) return filters.end;
+
+    const clamped = new Date(Math.min(rawEnd.getTime(), Date.now()));
+    return clamped.toISOString();
+  }, [filters.end, selectedDateRangePreset, localGroupBy]);
+
   useEffect(() => {
     setSelectedDateRangePreset(
       filters.mapDateRange === "custom"
         ? "custom"
-        : getPresetFromRange(filters.start, filters.end)
+        : getPresetFromRange(filters.start, filters.end),
     );
     setCustomStartDate(toDateInputValue(filters.start));
     setCustomEndDate(toDateInputValue(filters.end));
   }, [filters.end, filters.mapDateRange, filters.start]);
+
+  useEffect(() => {
+    if (selectedDateRangePreset === "today") {
+      if (localGroupBy !== "hour") {
+        setLocalGroupBy("hour");
+      }
+      return;
+    }
+
+    if (localGroupBy === "hour") {
+      setLocalGroupBy("day");
+    }
+  }, [selectedDateRangePreset, localGroupBy]);
 
   useEffect(() => {
     setShowTotalSeries(false);
@@ -232,8 +263,8 @@ const CategoryAnalytics = () => {
           new Set(
             availableCategories
               .map((value) => String(value || "").trim())
-              .filter(Boolean)
-          )
+              .filter(Boolean),
+          ),
         ).sort((left, right) => left.localeCompare(right));
 
         if (categoryLabel && !normalized.includes(categoryLabel)) {
@@ -289,7 +320,7 @@ const CategoryAnalytics = () => {
           categoryLabel,
           {
             start: filters.start,
-            end: filters.end,
+            end: effectiveEnd,
             groupBy: localGroupBy,
             timezone: filters.timezone,
           },
@@ -297,7 +328,7 @@ const CategoryAnalytics = () => {
             breakdown: selectedBreakdown,
             metric: selectedMetric,
             chartType,
-          }
+          },
         );
 
         if (cancelled) return;
@@ -316,14 +347,16 @@ const CategoryAnalytics = () => {
         setTableData(nextTableData);
         setSubcategories(nextSubcategories);
         setActiveSubcategories((previous) => {
-          const kept = previous.filter((value) => nextSubcategories.includes(value));
+          const kept = previous.filter((value) =>
+            nextSubcategories.includes(value),
+          );
           return kept.length > 0 ? kept : nextSubcategories;
         });
       } catch (requestError) {
         if (cancelled) return;
         setError(
           requestError?.response?.data?.message ||
-            "Failed to load category analytics."
+            "Failed to load category analytics.",
         );
         setChartData([]);
         setTableData([]);
@@ -342,7 +375,7 @@ const CategoryAnalytics = () => {
     isHydrated,
     categoryLabel,
     filters.start,
-    filters.end,
+    effectiveEnd,
     filters.timezone,
     localGroupBy,
     selectedBreakdown,
@@ -353,11 +386,11 @@ const CategoryAnalytics = () => {
   const totalRow = useMemo(() => {
     const totalRevenue = tableData.reduce(
       (sum, row) => sum + Number(row.revenue || 0),
-      0
+      0,
     );
     const totalOrders = tableData.reduce(
       (sum, row) => sum + Number(row.orders || 0),
-      0
+      0,
     );
     const aov = totalOrders > 0 ? totalRevenue / totalOrders : 0;
     return {
@@ -392,7 +425,7 @@ const CategoryAnalytics = () => {
       (row) =>
         row &&
         typeof row.name === "string" &&
-        activeSubcategories.includes(row.name)
+        activeSubcategories.includes(row.name),
     );
 
     if (showTotalSeries) {
@@ -427,7 +460,7 @@ const CategoryAnalytics = () => {
     return chartData.map((row) => {
       const totalValue = subcategories.reduce(
         (sum, breakdownValue) => sum + Number(row?.[breakdownValue] || 0),
-        0
+        0,
       );
       return {
         ...row,
@@ -447,7 +480,7 @@ const CategoryAnalytics = () => {
     setActiveSubcategories((prev) =>
       prev.includes(subcategory)
         ? prev.filter((item) => item !== subcategory)
-        : [...prev, subcategory]
+        : [...prev, subcategory],
     );
   };
 
@@ -477,10 +510,12 @@ const CategoryAnalytics = () => {
     "h-8 rounded-md border border-[#5a6b8c] bg-[#243047] px-2.5 text-xs text-[#e6f0ff] outline-none transition-colors focus:border-[#8ab4f8] focus:ring-1 focus:ring-[#8ab4f8]/40";
   const secondaryInputClassName =
     "h-8 rounded-md border border-[#475773] bg-[#1f2a3d] px-2.5 text-xs text-[#d8e4f6] outline-none transition-colors focus:border-[#7ea2dc] focus:ring-1 focus:ring-[#7ea2dc]/35";
-  const controlLabelClassName = "text-[10px] uppercase tracking-wide text-[#9aa0a6]";
+  const controlLabelClassName =
+    "text-[10px] uppercase tracking-wide text-[#9aa0a6]";
 
   const handleDatePresetChange = async (presetValue) => {
     setSelectedDateRangePreset(presetValue);
+    setLocalGroupBy(presetValue === "today" ? "hour" : "day");
     if (presetValue === "custom") return;
 
     const range = getPresetRange(presetValue);
@@ -488,11 +523,12 @@ const CategoryAnalytics = () => {
       {
         start: range.start,
         end: range.end,
+        groupBy: presetValue === "today" ? "hour" : "day",
       },
       {
         persistDateRange: true,
         datePreset: presetValue,
-      }
+      },
     );
   };
 
@@ -504,7 +540,10 @@ const CategoryAnalytics = () => {
     let nextStartDate = customStartDate;
     let nextEndDate = customEndDate;
     if (new Date(startIso).getTime() > new Date(endIso).getTime()) {
-      [startIso, endIso] = [buildStartIso(customEndDate), buildEndIso(customStartDate)];
+      [startIso, endIso] = [
+        buildStartIso(customEndDate),
+        buildEndIso(customStartDate),
+      ];
       [nextStartDate, nextEndDate] = [customEndDate, customStartDate];
     }
 
@@ -519,7 +558,7 @@ const CategoryAnalytics = () => {
       {
         persistDateRange: true,
         datePreset: "custom",
-      }
+      },
     );
   };
 
@@ -563,14 +602,20 @@ const CategoryAnalytics = () => {
               onClick={() => setIsFiltersCollapsed((previous) => !previous)}
               className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-xs text-slate-100 transition-colors hover:border-cyan-400/55 hover:text-cyan-100"
             >
-              {isFiltersCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+              {isFiltersCollapsed ? (
+                <ChevronDown size={14} />
+              ) : (
+                <ChevronUp size={14} />
+              )}
               {isFiltersCollapsed ? "Expand Filters" : "Collapse Filters"}
             </button>
           </div>
 
           <div className="flex flex-wrap items-end gap-2 border-b border-white/10 px-3 py-2">
             <label className="flex min-w-[170px] flex-col gap-1">
-              <span className={`${controlLabelClassName} text-[#b8c7e0]`}>Date Range</span>
+              <span className={`${controlLabelClassName} text-[#b8c7e0]`}>
+                Date Range
+              </span>
               <select
                 value={selectedDateRangePreset}
                 onChange={(event) => handleDatePresetChange(event.target.value)}
@@ -618,26 +663,35 @@ const CategoryAnalytics = () => {
           {!isFiltersCollapsed && (
             <div className="flex flex-wrap items-end gap-2 px-3 py-2">
               <label className="flex min-w-[200px] flex-col gap-1">
-                <span className={`${controlLabelClassName} text-[#b8c7e0]`}>Category</span>
+                <span className={`${controlLabelClassName} text-[#b8c7e0]`}>
+                  Category
+                </span>
                 <select
                   value={categoryLabel}
                   onChange={(event) => handleCategoryChange(event.target.value)}
                   className={highlightedInputClassName}
                   disabled={categoriesLoading && categories.length === 0}
                 >
-                  {(categories.length > 0 ? categories : [categoryLabel || ""]).map((category) => (
+                  {(categories.length > 0
+                    ? categories
+                    : [categoryLabel || ""]
+                  ).map((category) => (
                     <option key={category} value={category}>
                       {category}
                     </option>
                   ))}
                 </select>
                 {categoriesError && (
-                  <span className="text-[10px] text-[#b98585]">{categoriesError}</span>
+                  <span className="text-[10px] text-[#b98585]">
+                    {categoriesError}
+                  </span>
                 )}
               </label>
 
               <label className="flex min-w-[130px] flex-col gap-1">
-                <span className={`${controlLabelClassName} text-[#9fb2cf]`}>Metric</span>
+                <span className={`${controlLabelClassName} text-[#9fb2cf]`}>
+                  Metric
+                </span>
                 <select
                   value={selectedMetric}
                   onChange={(event) => setSelectedMetric(event.target.value)}
@@ -652,7 +706,9 @@ const CategoryAnalytics = () => {
               </label>
 
               <label className="flex min-w-[170px] flex-col gap-1">
-                <span className={`${controlLabelClassName} text-[#9fb2cf]`}>Breakdown</span>
+                <span className={`${controlLabelClassName} text-[#9fb2cf]`}>
+                  Breakdown
+                </span>
                 <select
                   value={selectedBreakdown}
                   onChange={(event) => setSelectedBreakdown(event.target.value)}
@@ -667,12 +723,15 @@ const CategoryAnalytics = () => {
               </label>
 
               <label className="flex min-w-[110px] flex-col gap-1">
-                <span className={`${controlLabelClassName} text-[#9fb2cf]`}>Group By</span>
+                <span className={`${controlLabelClassName} text-[#9fb2cf]`}>
+                  Group By
+                </span>
                 <select
                   value={localGroupBy}
                   onChange={(event) => setLocalGroupBy(event.target.value)}
                   className={secondaryInputClassName}
                 >
+                  <option value="hour">Hour</option>
                   <option value="day">Day</option>
                   <option value="week">Week</option>
                   <option value="month">Month</option>
@@ -683,7 +742,9 @@ const CategoryAnalytics = () => {
         </div>
 
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-[#eceff1]">{chartHeading}</h2>
+          <h2 className="text-base font-semibold text-[#eceff1]">
+            {chartHeading}
+          </h2>
           <div className="inline-flex h-8 rounded-md border border-[#5a6b8c] bg-[#243047] p-0.5 shadow-[0_0_0_1px_rgba(138,180,248,0.15)]">
             <button
               type="button"
@@ -713,10 +774,14 @@ const CategoryAnalytics = () => {
         </div>
 
         {!isHydrated && (
-          <p className="py-4 text-sm text-[#9aa0a6]">Loading saved filters...</p>
+          <p className="py-4 text-sm text-[#9aa0a6]">
+            Loading saved filters...
+          </p>
         )}
         {isHydrated && loading && (
-          <p className="py-4 text-sm text-[#9aa0a6]">Loading category analytics...</p>
+          <p className="py-4 text-sm text-[#9aa0a6]">
+            Loading category analytics...
+          </p>
         )}
         {isHydrated && !loading && error && (
           <p className="py-4 text-sm text-rose-400">{error}</p>
@@ -727,15 +792,28 @@ const CategoryAnalytics = () => {
             <div className="h-full min-w-[920px]">
               <ResponsiveContainer width="100%" height="100%">
                 {chartType === "line" ? (
-                  <LineChart data={lineChartData} margin={{ top: 10, right: 16, left: 8, bottom: 8 }}>
-                    <CartesianGrid vertical={false} stroke="#3a3a3a" strokeOpacity={0.45} />
+                  <LineChart
+                    data={lineChartData}
+                    margin={{ top: 10, right: 16, left: 8, bottom: 8 }}
+                  >
+                    <CartesianGrid
+                      vertical={false}
+                      stroke="#3a3a3a"
+                      strokeOpacity={0.45}
+                    />
                     <XAxis
                       dataKey="date"
                       stroke="#9aa0a6"
                       tick={{ fill: "#9aa0a6", fontSize: 11 }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(value) => formatDateTick(value, localGroupBy)}
+                      tickFormatter={(value) =>
+                        formatDateTick(
+                          value,
+                          localGroupBy,
+                          filters.timezone || "UTC",
+                        )
+                      }
                       minTickGap={22}
                     />
                     <YAxis
@@ -745,10 +823,21 @@ const CategoryAnalytics = () => {
                       tickLine={false}
                       width={selectedMetric === "revenueShare" ? 80 : 112}
                       tickMargin={8}
-                      tickFormatter={(value) => formatMetricTick(selectedMetric, value)}
+                      tickFormatter={(value) =>
+                        formatMetricTick(selectedMetric, value)
+                      }
                     />
                     <Tooltip
-                      formatter={(value) => formatMetricValue(selectedMetric, value)}
+                      formatter={(value) =>
+                        formatMetricValue(selectedMetric, value)
+                      }
+                      labelFormatter={(value) =>
+                        formatDateTick(
+                          value,
+                          localGroupBy,
+                          filters.timezone || "UTC",
+                        )
+                      }
                       contentStyle={{
                         background: "#242424",
                         border: "1px solid #424242",
@@ -770,7 +859,9 @@ const CategoryAnalytics = () => {
                           dataKey={subcategory}
                           stroke={stroke}
                           strokeWidth={isRowHovered ? 2.4 : 1.8}
-                          strokeOpacity={hasRowHover ? (isRowHovered ? 1 : 0.25) : 0.9}
+                          strokeOpacity={
+                            hasRowHover ? (isRowHovered ? 1 : 0.25) : 0.9
+                          }
                           dot={false}
                           activeDot={false}
                           isAnimationActive
@@ -792,8 +883,15 @@ const CategoryAnalytics = () => {
                     )}
                   </LineChart>
                 ) : (
-                  <BarChart data={barChartData} margin={{ top: 10, right: 16, left: 8, bottom: 8 }}>
-                    <CartesianGrid vertical={false} stroke="#3a3a3a" strokeOpacity={0.45} />
+                  <BarChart
+                    data={barChartData}
+                    margin={{ top: 10, right: 16, left: 8, bottom: 8 }}
+                  >
+                    <CartesianGrid
+                      vertical={false}
+                      stroke="#3a3a3a"
+                      strokeOpacity={0.45}
+                    />
                     <XAxis
                       dataKey="name"
                       stroke="#9aa0a6"
@@ -809,10 +907,14 @@ const CategoryAnalytics = () => {
                       tickLine={false}
                       width={selectedMetric === "revenueShare" ? 80 : 112}
                       tickMargin={8}
-                      tickFormatter={(value) => formatMetricTick(selectedMetric, value)}
+                      tickFormatter={(value) =>
+                        formatMetricTick(selectedMetric, value)
+                      }
                     />
                     <Tooltip
-                      formatter={(value) => formatMetricValue(selectedMetric, value)}
+                      formatter={(value) =>
+                        formatMetricValue(selectedMetric, value)
+                      }
                       contentStyle={{
                         background: "#242424",
                         border: "1px solid #424242",
@@ -822,7 +924,11 @@ const CategoryAnalytics = () => {
                       labelStyle={{ color: "#e0e0e0" }}
                     />
 
-                    <Bar dataKey="value" radius={[2, 2, 0, 0]} isAnimationActive>
+                    <Bar
+                      dataKey="value"
+                      radius={[2, 2, 0, 0]}
+                      isAnimationActive
+                    >
                       {barChartData.map((entry) => {
                         const isTotalBar = Boolean(entry.__isTotal);
                         const isRowHovered = hoveredSubcategory === entry.name;
@@ -833,7 +939,9 @@ const CategoryAnalytics = () => {
                         const fillOpacity = isTotalBar
                           ? 0.98
                           : hasRowHover
-                            ? (isRowHovered ? 0.95 : 0.25)
+                            ? isRowHovered
+                              ? 0.95
+                              : 0.25
                             : 0.88;
                         return (
                           <Cell
@@ -856,10 +964,11 @@ const CategoryAnalytics = () => {
           !error &&
           chartData.length > 0 &&
           activeSubcategories.length === 0 && (
-          <p className="py-3 text-xs text-[#d4a650]">
-            No values selected. Enable {breakdownLabel.toLowerCase()} entries from the table below.
-          </p>
-        )}
+            <p className="py-3 text-xs text-[#d4a650]">
+              No values selected. Enable {breakdownLabel.toLowerCase()} entries
+              from the table below.
+            </p>
+          )}
 
         <div className="mt-2 border-t border-[#333]" />
 
@@ -927,7 +1036,9 @@ const CategoryAnalytics = () => {
                     <input
                       type="checkbox"
                       checked={showTotalSeries}
-                      onChange={() => setShowTotalSeries((previous) => !previous)}
+                      onChange={() =>
+                        setShowTotalSeries((previous) => !previous)
+                      }
                       className="h-3.5 w-3.5 rounded border border-[#5f6368] bg-[#202124] accent-[#8ab4f8]"
                     />
                   </td>
@@ -950,13 +1061,16 @@ const CategoryAnalytics = () => {
                 !loading &&
                 sortedTableData.map((row) => {
                   const checked = activeSubcategories.includes(row.subcategory);
-                  const swatchColor = colorMap[row.subcategory] || LINE_COLORS[0];
+                  const swatchColor =
+                    colorMap[row.subcategory] || LINE_COLORS[0];
                   return (
                     <tr
                       key={row.subcategory}
                       className="cursor-pointer border-b border-[#2f2f2f] transition-colors hover:bg-[#2b2b2b]"
                       onClick={() => handleToggleSubcategory(row.subcategory)}
-                      onMouseEnter={() => setHoveredSubcategory(row.subcategory)}
+                      onMouseEnter={() =>
+                        setHoveredSubcategory(row.subcategory)
+                      }
                       onMouseLeave={() => setHoveredSubcategory("")}
                     >
                       <td className="px-2 py-2.5">
@@ -964,7 +1078,9 @@ const CategoryAnalytics = () => {
                           type="checkbox"
                           checked={checked}
                           onClick={(event) => event.stopPropagation()}
-                          onChange={() => handleToggleSubcategory(row.subcategory)}
+                          onChange={() =>
+                            handleToggleSubcategory(row.subcategory)
+                          }
                           className="h-3.5 w-3.5 rounded border border-[#5f6368] bg-[#202124] accent-[#8ab4f8]"
                         />
                       </td>
@@ -999,7 +1115,8 @@ const CategoryAnalytics = () => {
 
         {isHydrated && !loading && !error && sortedTableData.length === 0 && (
           <p className="py-4 text-sm text-[#9aa0a6]">
-            No {breakdownLabel.toLowerCase()} analytics found for the selected date range.
+            No {breakdownLabel.toLowerCase()} analytics found for the selected
+            date range.
           </p>
         )}
       </div>
