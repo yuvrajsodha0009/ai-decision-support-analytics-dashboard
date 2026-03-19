@@ -1,11 +1,12 @@
+import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   Activity,
+  ChevronLeft,
+  ChevronRight,
   Database,
   FileText,
   LayoutDashboard,
-  PanelLeftClose,
-  PanelLeftOpen,
   Settings,
   Sparkles,
   Target,
@@ -19,14 +20,22 @@ import { isAdminRole, normalizeRole, ROLES } from "../utils/roles";
 const SHOW_API_DATA_MODULE = false;
 
 const Sidebar = ({
-  collapsed,
-  setCollapsed,
   isDesktop,
   mobileOpen,
   setMobileOpen,
+  onDesktopCollapseChange,
 }) => {
+  const [desktopCollapsed, setDesktopCollapsed] = useState(false);
   const role = normalizeRole(localStorage.getItem("role") || ROLES.EMPLOYEE);
-  const compact = isDesktop && collapsed;
+  const compact = isDesktop && desktopCollapsed;
+
+  const toggleDesktopCollapse = () => {
+    setDesktopCollapsed((previous) => {
+      const next = !previous;
+      onDesktopCollapseChange?.(next);
+      return next;
+    });
+  };
 
   const closeMobileMenu = () => {
     if (!isDesktop) {
@@ -52,18 +61,18 @@ const Sidebar = ({
   ];
 
   const adminLinks = [
-    { to: "/admin", label: "Admin Management", icon: Settings },
+    { to: "/admin", label: "Admin Management", icon: Settings, end: true },
     { to: "/activity-log", label: "Activity Audit", icon: Activity },
     { to: "/admin/sales", label: "Raw Sales", icon: TrendingUp },
   ];
 
   const linkClass = ({ isActive }) =>
-    `group flex items-center rounded-2xl border px-3 py-3 transition-all duration-200 ease-in-out ${
+    `group relative overflow-hidden flex items-center rounded-2xl border px-3 py-3 transition-[background-color,border-color,color,padding,gap] duration-180 ease-out after:absolute after:bottom-2 after:left-0 after:top-2 after:w-[2px] after:rounded-r-full after:bg-cyan-300/85 after:transition-opacity after:duration-180 ${
       compact ? "justify-center" : "gap-3"
     } ${
       isActive
-        ? "border-cyan-300/35 bg-gradient-to-r from-cyan-500/25 to-indigo-500/25 text-white shadow-lg shadow-cyan-950/40"
-        : "border-transparent text-slate-300 hover:border-cyan-400/20 hover:bg-slate-800/80 hover:text-white"
+        ? "border-cyan-300/35 bg-gradient-to-r from-cyan-500/25 to-indigo-500/25 text-white shadow-lg shadow-cyan-950/40 after:opacity-100"
+        : "border-transparent text-slate-300 after:opacity-0 hover:border-cyan-400/20 hover:bg-slate-800/80 hover:text-white hover:after:opacity-80"
     }`;
 
   return (
@@ -78,38 +87,59 @@ const Sidebar = ({
       )}
 
       <aside
-        className={`app-sidebar fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.98)_0%,rgba(2,6,23,0.98)_100%)] px-4 py-5 text-slate-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition-all duration-200 ease-in-out lg:translate-x-0 ${
-          compact ? "lg:w-24" : "lg:w-72"
-        } ${isDesktop ? "" : "w-72"} ${sidebarVisibility}`}
+        data-compact={compact ? "true" : "false"}
+        className={`app-sidebar group fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.98)_0%,rgba(2,6,23,0.98)_100%)] px-4 py-5 text-slate-100 shadow-2xl shadow-black/40 backdrop-blur-xl lg:translate-x-0 ${
+          isDesktop ? "" : "w-72"
+        } ${sidebarVisibility}`}
       >
-        <div className="mb-7 flex items-center justify-between">
-          <div
-            className={`flex items-center gap-3 ${compact ? "justify-center" : ""}`}
+        {isDesktop && (
+          <button
+            type="button"
+            onClick={toggleDesktopCollapse}
+            className="absolute -right-2.5 top-1/2 z-20 inline-flex h-11 w-5 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-300/20 bg-slate-950/55 text-cyan-200/70 shadow-[0_6px_14px_rgba(2,6,23,0.35)] backdrop-blur-sm opacity-20 transition-all duration-200 ease-out hover:border-cyan-200/45 hover:bg-slate-900/80 hover:text-cyan-100 hover:opacity-100 focus-visible:opacity-100 lg:opacity-0 lg:group-hover:opacity-95"
+            aria-label={compact ? "Expand Sidebar" : "Collapse Sidebar"}
           >
-            <div className="rounded-xl border border-cyan-300/30 bg-gradient-to-br from-cyan-400 to-indigo-500 p-2.5 shadow-lg shadow-cyan-500/30">
-              <Sparkles className="text-slate-950" size={18} />
-            </div>
-            {!compact && (
-              <h2 className="text-xl font-semibold tracking-tight text-white">
-                Analytics OS
-              </h2>
+            {compact ? (
+              <ChevronRight size={12} strokeWidth={1.6} />
+            ) : (
+              <ChevronLeft size={12} strokeWidth={1.6} />
             )}
-          </div>
+          </button>
+        )}
 
-          {isDesktop ? (
+        <div
+          className={`mb-7 flex items-center ${compact ? "justify-center" : "justify-between"}`}
+        >
+          <div
+            className={`flex items-center gap-3 ${compact ? "w-full justify-center" : ""}`}
+          >
             <button
               type="button"
-              onClick={() => setCollapsed((prev) => !prev)}
-              className="rounded-xl border border-white/10 bg-slate-800/60 p-2 text-slate-200 transition-all duration-200 ease-in-out hover:bg-slate-700/70"
-              aria-label={compact ? "Expand Sidebar" : "Collapse Sidebar"}
+              onClick={isDesktop ? toggleDesktopCollapse : undefined}
+              aria-label={
+                isDesktop
+                  ? compact
+                    ? "Expand Sidebar"
+                    : "Collapse Sidebar"
+                  : "Analytics"
+              }
+              className={`rounded-xl border border-cyan-300/30 bg-gradient-to-br from-cyan-400 to-indigo-500 p-2.5 shadow-lg shadow-cyan-500/30 ${
+                isDesktop
+                  ? "cursor-pointer transition-transform duration-150 ease-out hover:scale-[1.03]"
+                  : "cursor-default"
+              }`}
             >
-              {compact ? (
-                <PanelLeftOpen size={16} />
-              ) : (
-                <PanelLeftClose size={16} />
-              )}
+              <Sparkles className="text-slate-950" size={18} />
             </button>
-          ) : (
+            <h2
+              data-sidebar-text
+              className="text-xl font-semibold tracking-tight text-white"
+            >
+              Analytics OS
+            </h2>
+          </div>
+
+          {!isDesktop && (
             <button
               type="button"
               onClick={() => setMobileOpen(false)}
@@ -122,11 +152,12 @@ const Sidebar = ({
         </div>
 
         <nav className="scrollbar-hide min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
-          {!compact && (
-            <p className="px-2 pb-1 text-xs uppercase tracking-[0.22em] text-slate-500">
-              Core Modules
-            </p>
-          )}
+          <p
+            data-sidebar-text
+            className="px-2 pb-1 text-xs uppercase tracking-[0.22em] text-slate-500"
+          >
+            Core Modules
+          </p>
 
           {mainLinks.map((item) => (
             <NavLink
@@ -137,31 +168,38 @@ const Sidebar = ({
               title={compact ? item.label : undefined}
             >
               <item.icon size={18} className="shrink-0" />
-              {!compact && (
-                <span className="text-sm font-medium">{item.label}</span>
-              )}
+              <span data-sidebar-text className="text-sm font-medium">
+                {item.label}
+              </span>
             </NavLink>
           ))}
 
           {isAdminRole(role) && (
             <>
-              {!compact && (
-                <p className="mt-4 px-2 pb-1 text-xs uppercase tracking-[0.22em] text-slate-500">
-                  Management
-                </p>
-              )}
+              <div
+                data-sidebar-divider
+                className="mx-1 h-px rounded-full bg-gradient-to-r from-cyan-300/0 via-cyan-300/45 to-cyan-300/0 shadow-[0_0_10px_rgba(34,211,238,0.2)]"
+              />
+              <p
+                data-sidebar-heading
+                data-sidebar-text
+                className="px-2 pb-1 text-xs uppercase tracking-[0.22em] text-slate-500"
+              >
+                Management
+              </p>
               {adminLinks.map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}
+                  end={item.end}
                   onClick={closeMobileMenu}
                   className={linkClass}
                   title={compact ? item.label : undefined}
                 >
                   <item.icon size={18} className="shrink-0" />
-                  {!compact && (
-                    <span className="text-sm font-medium">{item.label}</span>
-                  )}
+                  <span data-sidebar-text className="text-sm font-medium">
+                    {item.label}
+                  </span>
                 </NavLink>
               ))}
             </>
@@ -169,17 +207,7 @@ const Sidebar = ({
         </nav>
 
         <div className={`mt-auto pt-6 ${compact ? "px-1" : ""}`}>
-          {!compact ? (
-            <ProfileDropdown variant="sidebar" />
-          ) : (
-            <NavLink
-              to="/settings"
-              title="Settings"
-              className="flex items-center justify-center rounded-2xl border border-white/10 bg-slate-800/70 py-3 text-slate-200 transition-all duration-200 ease-in-out hover:bg-slate-700/80 hover:text-white"
-            >
-              <Settings size={18} />
-            </NavLink>
-          )}
+          <ProfileDropdown variant="sidebar" compact={compact} />
         </div>
       </aside>
     </>

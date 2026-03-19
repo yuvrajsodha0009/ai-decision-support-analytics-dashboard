@@ -16,7 +16,7 @@ const getInitials = (name, email) => {
   return "U";
 };
 
-const ProfileDropdown = ({ variant = "top" }) => {
+const ProfileDropdown = ({ variant = "top", compact = false }) => {
   const navigate = useNavigate();
   const containerRef = useRef(null);
   const [open, setOpen] = useState(false);
@@ -32,7 +32,9 @@ const ProfileDropdown = ({ variant = "top" }) => {
     const readLocal = () => {
       const name = localStorage.getItem("userName") || "";
       const email = localStorage.getItem("userEmail") || "";
-      const role = normalizeRole(localStorage.getItem("role") || ROLES.EMPLOYEE);
+      const role = normalizeRole(
+        localStorage.getItem("role") || ROLES.EMPLOYEE,
+      );
       const avatar = localStorage.getItem("userAvatar") || "";
       setUserInfo({ name, email, role, avatar });
       return { name, email, role, avatar };
@@ -118,6 +120,7 @@ const ProfileDropdown = ({ variant = "top" }) => {
   const displayName = userInfo.name || "User";
   const displayEmail = userInfo.email || "user@example.com";
   const isSidebar = variant === "sidebar";
+  const isCompactSidebar = isSidebar && compact;
   const avatarUrl = userInfo.avatar
     ? userInfo.avatar.startsWith("http")
       ? userInfo.avatar
@@ -132,9 +135,11 @@ const ProfileDropdown = ({ variant = "top" }) => {
         aria-haspopup="menu"
         aria-expanded={open}
         className={
-          isSidebar
-            ? "group flex w-full items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-3 py-3 text-slate-900 shadow-lg shadow-slate-200/70 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:shadow-black/30 dark:hover:bg-white/10"
-            : "group flex items-center gap-3 rounded-full border border-slate-200/80 bg-white/90 px-3 py-2 text-slate-900 shadow-lg shadow-slate-200/70 backdrop-blur transition hover:bg-white dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:shadow-black/30 dark:hover:bg-slate-900"
+          isCompactSidebar
+            ? "group mx-auto flex h-10 w-10 items-center justify-center rounded-full p-0 text-slate-100 transition-transform duration-180 ease-out hover:scale-[1.04]"
+            : isSidebar
+              ? "group flex w-full items-center gap-3 rounded-2xl bg-gradient-to-r from-[#122a43]/72 via-[#1a3655]/68 to-[#22445f]/72 px-3 py-3 text-slate-100 shadow-[0_8px_18px_rgba(2,6,23,0.3)] backdrop-blur-md saturate-90 transition-[background-color,box-shadow,transform] duration-220 ease-out hover:shadow-[0_10px_22px_rgba(2,6,23,0.34)] hover:from-[#14314c]/75 hover:via-[#1c3d5f]/72 hover:to-[#274b69]/75"
+              : "group flex items-center gap-3 rounded-full border border-slate-200/80 bg-white/90 px-3 py-2 text-slate-900 shadow-lg shadow-slate-200/70 backdrop-blur transition hover:bg-white dark:border-white/10 dark:bg-slate-900/80 dark:text-slate-100 dark:shadow-black/30 dark:hover:bg-slate-900"
         }
       >
         <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-cyan-400 to-teal-500 text-sm font-semibold text-black">
@@ -142,33 +147,45 @@ const ProfileDropdown = ({ variant = "top" }) => {
             <img
               src={avatarUrl}
               alt={displayName}
-              className="h-full w-full object-cover"
+              className="h-full w-full rounded-full object-cover"
             />
           ) : (
             initials
           )}
         </div>
-        <div className="text-left">
-          <p className="text-sm font-semibold leading-tight">{displayName}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {displayEmail}
-          </p>
-        </div>
-        <ChevronDown
-          size={18}
-          className={`text-slate-500 transition dark:text-slate-400 ${
-            open ? "rotate-180" : "rotate-0"
+        <div
+          className={`flex min-w-0 flex-1 items-center justify-between overflow-hidden transition-[max-width,opacity,transform,margin] duration-220 ease-out ${
+            isCompactSidebar
+              ? "-ml-1 max-w-0 translate-x-1 opacity-0"
+              : "ml-3 max-w-[220px] translate-x-0 opacity-100"
           }`}
-        />
+        >
+          <div className="min-w-0 text-left">
+            <p className="truncate text-sm font-semibold leading-tight">
+              {displayName}
+            </p>
+            <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+              {displayEmail}
+            </p>
+          </div>
+          <ChevronDown
+            size={18}
+            className={`ml-2 shrink-0 text-slate-500 transition-[opacity,transform] duration-200 dark:text-slate-400 ${
+              open ? "rotate-180" : "rotate-0"
+            }`}
+          />
+        </div>
       </button>
 
       <div
         role="menu"
         aria-hidden={!open}
         className={`${
-          isSidebar
-            ? "fixed left-6 bottom-24 w-72 origin-bottom-left"
-            : "absolute right-0 mt-3 w-72 origin-top-right"
+          isCompactSidebar
+            ? "fixed left-24 bottom-20 w-72 origin-bottom-left"
+            : isSidebar
+              ? "fixed left-6 bottom-24 w-72 origin-bottom-left"
+              : "absolute right-0 mt-3 w-72 origin-top-right"
         } rounded-2xl border border-slate-200/80 bg-white p-3 text-slate-900 shadow-2xl shadow-slate-200/80 backdrop-blur transition dark:border-white/10 dark:bg-slate-900/95 dark:text-slate-100 dark:shadow-black/40 ${
           open
             ? "pointer-events-auto scale-100 opacity-100"

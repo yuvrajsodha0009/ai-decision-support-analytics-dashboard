@@ -1,10 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  ChevronDown,
-  ChevronUp,
-  Filter,
-  RotateCcw,
-} from "lucide-react";
+import { ChevronDown, ChevronUp, Filter, RotateCcw } from "lucide-react";
 import { useAnalyticsFilters } from "../../context/AnalyticsFiltersContext";
 import {
   ANALYTICS_DATE_PRESET_OPTIONS,
@@ -21,7 +16,9 @@ const inputClassName =
 
 const SelectField = ({ label, value, options, onChange }) => (
   <label className="flex flex-col gap-1.5 text-sm">
-    <span className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</span>
+    <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+      {label}
+    </span>
     <select value={value} onChange={onChange} className={inputClassName}>
       <option value="">All</option>
       {options.map((item) => (
@@ -69,6 +66,7 @@ const GlobalFilterBar = ({ options, loading, showCompareToggle = true }) => {
       start: range.start,
       end: range.end,
       mapDateRange: preset,
+      groupBy: preset === "today" ? "hour" : previous.groupBy,
     }));
   };
 
@@ -162,7 +160,9 @@ const GlobalFilterBar = ({ options, loading, showCompareToggle = true }) => {
           <span className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 p-2 text-cyan-300">
             <Filter size={14} />
           </span>
-          <h2 className="text-lg font-semibold text-slate-100">Global Filters</h2>
+          <h2 className="text-lg font-semibold text-slate-100">
+            Global Filters
+          </h2>
         </div>
 
         <button
@@ -248,7 +248,9 @@ const GlobalFilterBar = ({ options, loading, showCompareToggle = true }) => {
                 <input
                   type="checkbox"
                   checked={Boolean(draftFilters.compareMode)}
-                  onChange={(event) => updateDraft("compareMode", event.target.checked)}
+                  onChange={(event) =>
+                    updateDraft("compareMode", event.target.checked)
+                  }
                   className="h-4 w-4 rounded border-slate-500 bg-slate-900 text-cyan-400 focus:ring-cyan-400/60"
                 />
                 Compare with Previous Period
@@ -258,23 +260,33 @@ const GlobalFilterBar = ({ options, loading, showCompareToggle = true }) => {
         </div>
       )}
 
-      <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-800/70 px-4 py-2 text-sm font-medium text-slate-200 transition-all duration-200 ease-in-out hover:bg-slate-700/80"
-          >
-            <RotateCcw size={14} />
-            Clear All
-          </button>
-          <button
-            type="button"
-            onClick={applyFilters}
-            className="rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-700/20 transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:opacity-95"
-          >
-            Apply Filters
-          </button>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+        <p className="text-xs text-slate-500">
+          Changes apply across all dashboard widgets
+        </p>
+
+        <div className="flex items-center gap-3">
+          <span
+            className="hidden h-7 w-px bg-white/10 sm:inline-block"
+            aria-hidden
+          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-800/70 px-4 py-2 text-sm font-medium text-slate-200 transition-all duration-200 ease-in-out hover:bg-slate-700/80"
+            >
+              <RotateCcw size={14} />
+              Clear All
+            </button>
+            <button
+              type="button"
+              onClick={applyFilters}
+              className="rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-700/20 transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:opacity-95"
+            >
+              Apply Filters
+            </button>
+          </div>
         </div>
       </div>
     </DashboardCard>

@@ -629,16 +629,26 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_15%_20%,rgba(34,211,238,0.12),transparent_30%),radial-gradient(circle_at_85%_10%,rgba(99,102,241,0.14),transparent_32%),linear-gradient(135deg,#020617_0%,#0b1220_45%,#111827_100%)] p-4 text-slate-100 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-fixed bg-[radial-gradient(circle_at_15%_20%,rgba(34,211,238,0.12),transparent_30%),radial-gradient(circle_at_85%_10%,rgba(99,102,241,0.14),transparent_32%),linear-gradient(135deg,#020617_0%,#0b1220_45%,#111827_100%)] p-4 text-slate-100 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1600px]">
         <header className="mb-5 rounded-2xl border border-white/10 bg-slate-900/55 px-6 py-4 shadow-xl backdrop-blur-xl">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-              Sales Command Center
-            </h1>
-            <p className="mt-1 text-sm text-slate-400">
-              AI requests now flow through a centralized Node to Python gateway.
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                Sales Command Center
+              </h1>
+              <p className="mt-1 text-sm text-slate-400">
+                AI requests now flow through a centralized Node to Python
+                gateway.
+              </p>
+            </div>
+
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.8)]" />
+              Live
+              <span className="text-emerald-300/70">|</span>
+              <span className="text-emerald-100/85">Updated now</span>
+            </div>
           </div>
         </header>
 

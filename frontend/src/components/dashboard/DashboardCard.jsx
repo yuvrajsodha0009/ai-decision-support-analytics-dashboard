@@ -8,7 +8,7 @@ const DashboardCard = ({
     <section
       className={`relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/65 shadow-xl backdrop-blur-xl ${
         hoverable
-          ? "transition-all duration-200 ease-in-out hover:-translate-y-1 hover:shadow-2xl hover:shadow-cyan-950/30"
+          ? "transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:border-cyan-300/25 hover:shadow-xl hover:shadow-cyan-950/25"
           : ""
       } ${className}`}
     >

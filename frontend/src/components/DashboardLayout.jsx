@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet } from "react-router-dom";
 import { PanelLeftOpen } from "lucide-react";
 import Sidebar from "./Sidebar";
@@ -11,11 +11,23 @@ const isDesktopViewport = () => {
 };
 
 const DashboardLayout = () => {
+  const shellRef = useRef(null);
   const [isDesktop, setIsDesktop] = useState(isDesktopViewport);
-  const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const handleDesktopCollapseChange = useCallback((collapsed) => {
+    if (!shellRef.current) return;
+    shellRef.current.setAttribute(
+      "data-sidebar-collapsed",
+      collapsed ? "true" : "false",
+    );
+  }, []);
+
   useEffect(() => {
+    if (shellRef.current) {
+      shellRef.current.setAttribute("data-sidebar-collapsed", "false");
+    }
+
     const onResize = () => {
       const desktop = isDesktopViewport();
       setIsDesktop(desktop);
@@ -27,20 +39,19 @@ const DashboardLayout = () => {
   }, []);
 
   return (
-    <div className="app-shell flex min-h-screen overflow-hidden bg-[#020617] text-slate-100">
+    <div
+      ref={shellRef}
+      data-sidebar-collapsed="false"
+      className="app-shell flex min-h-screen overflow-hidden bg-[#020617] text-slate-100"
+    >
       <Sidebar
-        collapsed={collapsed}
-        setCollapsed={setCollapsed}
         isDesktop={isDesktop}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
+        onDesktopCollapseChange={handleDesktopCollapseChange}
       />
 
-      <main
-        className={`app-main relative flex-1 overflow-y-auto bg-transparent transition-all duration-200 ease-in-out ${
-          isDesktop ? (collapsed ? "lg:ml-24" : "lg:ml-72") : "ml-0"
-        }`}
-      >
+      <main className="app-main relative flex-1 overflow-y-auto bg-transparent">
         <div className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/80 px-4 py-3 backdrop-blur lg:hidden">
           <button
             type="button"

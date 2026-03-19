@@ -9,16 +9,27 @@ import {
   CartesianGrid,
   Area,
   Legend,
+  ReferenceDot,
 } from "recharts";
 import { useAnalyticsFilters } from "../../context/AnalyticsFiltersContext";
 import ChartContainer from "./ChartContainer";
 
 const MAX_DENSE_POINTS = 1600;
 
-const formatDateLabel = (value) => {
+const formatDateLabel = (value, groupBy = "day", timeZone = "UTC") => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-IN");
+
+  if (groupBy === "hour") {
+    return date.toLocaleTimeString("en-IN", {
+      timeZone,
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  }
+
+  return date.toLocaleDateString("en-IN", { timeZone });
 };
 
 const formatCurrency = (value) =>
@@ -133,6 +144,7 @@ const buildDenseChartSeries = ({
   endIso,
   compareMode,
   metric,
+  clampToNow = false,
 }) => {
   const parsedRows = rows
     .map((row) => {
@@ -153,10 +165,14 @@ const buildDenseChartSeries = ({
 
   const start = new Date(startIso);
   const end = new Date(endIso);
+  const effectiveEnd =
+    clampToNow && groupBy === "hour"
+      ? new Date(Math.min(end.getTime(), Date.now()))
+      : end;
   if (
     Number.isNaN(start.getTime()) ||
-    Number.isNaN(end.getTime()) ||
-    start > end
+    Number.isNaN(effectiveEnd.getTime()) ||
+    start > effectiveEnd
   ) {
     return parsedRows;
   }
@@ -173,7 +189,7 @@ const buildDenseChartSeries = ({
   let matched = 0;
   let guard = 0;
 
-  while (cursor <= end && guard < MAX_DENSE_POINTS) {
+  while (cursor <= effectiveEnd && guard < MAX_DENSE_POINTS) {
     const bucketKey = getBucketKey(cursor, groupBy, timeZone);
     const existing = mapByBucket.get(bucketKey);
 
@@ -197,7 +213,15 @@ const buildDenseChartSeries = ({
   return dense;
 };
 
-const TrendTooltip = ({ active, payload, label, metric, compareMode }) => {
+const TrendTooltip = ({
+  active,
+  payload,
+  label,
+  metric,
+  compareMode,
+  groupBy,
+  timeZone,
+}) => {
   if (!active || !payload?.length) return null;
 
   let currentValue = null;
@@ -215,7 +239,7 @@ const TrendTooltip = ({ active, payload, label, metric, compareMode }) => {
   return (
     <div className="rounded-xl border border-slate-500/35 bg-slate-900/85 px-4 py-3 shadow-xl backdrop-blur-md">
       <p className="mb-2 text-sm font-semibold text-slate-100">
-        {formatDateLabel(label)}
+        {formatDateLabel(label, groupBy, timeZone)}
       </p>
       {currentValue !== null && (
         <p className="text-sm text-cyan-200">
@@ -285,30 +309,45 @@ const RevenueTrendChart = ({
   const { filters, setFilter } = useAnalyticsFilters();
 
   const metric = metricConfig[activeMetric] || metricConfig.revenue;
+  const effectiveGroupBy =
+    filters.mapDateRange === "today" ? "hour" : filters.groupBy || "day";
+  const clampToNow = filters.mapDateRange === "today";
 
   const chartData = useMemo(
     () =>
       buildDenseChartSeries({
         rows: data,
-        groupBy: filters.groupBy || "day",
+        groupBy: effectiveGroupBy,
         timeZone: filters.timezone || "UTC",
         startIso: filters.start,
         endIso: filters.end,
         compareMode,
         metric,
+        clampToNow,
       }),
     [
       data,
-      filters.groupBy,
+      effectiveGroupBy,
       filters.timezone,
       filters.start,
       filters.end,
       compareMode,
       metric,
+      clampToNow,
     ],
   );
 
   const areaGradientId = `trendAreaGradient-${activeMetric}`;
+  const peakGlowGradientId = `trendPeakGlow-${activeMetric}`;
+  const lineGlowId = `trendLineGlow-${activeMetric}`;
+  const peakPoint = useMemo(() => {
+    if (!chartData.length) return null;
+    return chartData.reduce(
+      (maxPoint, row) =>
+        row.currentValue > maxPoint.currentValue ? row : maxPoint,
+      chartData[0],
+    );
+  }, [chartData]);
 
   const actions = (
     <>
@@ -373,14 +412,47 @@ const RevenueTrendChart = ({
                     <stop
                       offset="0%"
                       stopColor={metric.areaGradient[0]}
-                      stopOpacity={0.35}
+                      stopOpacity={0.46}
                     />
                     <stop
-                      offset="95%"
+                      offset="88%"
+                      stopColor={metric.areaGradient[1]}
+                      stopOpacity={0.05}
+                    />
+                  </linearGradient>
+
+                  <linearGradient
+                    id={peakGlowGradientId}
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop
+                      offset="0%"
+                      stopColor={metric.areaGradient[0]}
+                      stopOpacity={0.2}
+                    />
+                    <stop
+                      offset="100%"
                       stopColor={metric.areaGradient[1]}
                       stopOpacity={0}
                     />
                   </linearGradient>
+
+                  <filter
+                    id={lineGlowId}
+                    x="-30%"
+                    y="-30%"
+                    width="160%"
+                    height="160%"
+                  >
+                    <feGaussianBlur stdDeviation="2.3" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
                 </defs>
 
                 <CartesianGrid
@@ -390,7 +462,13 @@ const RevenueTrendChart = ({
                 />
                 <XAxis
                   dataKey="period"
-                  tickFormatter={formatDateLabel}
+                  tickFormatter={(value) =>
+                    formatDateLabel(
+                      value,
+                      effectiveGroupBy,
+                      filters.timezone || "UTC",
+                    )
+                  }
                   stroke="#94a3b8"
                   tick={{ fill: "#cbd5e1", fontSize: 12 }}
                   axisLine={false}
@@ -414,11 +492,25 @@ const RevenueTrendChart = ({
                     strokeWidth: 1,
                   }}
                   content={
-                    <TrendTooltip metric={metric} compareMode={compareMode} />
+                    <TrendTooltip
+                      metric={metric}
+                      compareMode={compareMode}
+                      groupBy={effectiveGroupBy}
+                      timeZone={filters.timezone || "UTC"}
+                    />
                   }
                 />
                 <Legend wrapperStyle={{ paddingTop: 8 }} />
 
+                <Area
+                  type="monotone"
+                  dataKey="currentValue"
+                  fill={`url(#${peakGlowGradientId})`}
+                  stroke="none"
+                  legendType="none"
+                  isAnimationActive
+                  fillOpacity={0.55}
+                />
                 <Area
                   type="monotone"
                   dataKey="currentValue"
@@ -433,9 +525,21 @@ const RevenueTrendChart = ({
                   name={`Current ${metric.label}`}
                   stroke={metric.axisColor}
                   strokeWidth={3}
+                  filter={`url(#${lineGlowId})`}
                   dot={false}
                   activeDot={{ r: 4, strokeWidth: 0, fill: metric.axisColor }}
                 />
+                {peakPoint && (
+                  <ReferenceDot
+                    x={peakPoint.period}
+                    y={peakPoint.currentValue}
+                    r={4}
+                    fill={metric.axisColor}
+                    stroke="rgba(224, 242, 254, 0.65)"
+                    strokeWidth={1.5}
+                    ifOverflow="extendDomain"
+                  />
+                )}
                 {compareMode && (
                   <Line
                     type="monotone"
