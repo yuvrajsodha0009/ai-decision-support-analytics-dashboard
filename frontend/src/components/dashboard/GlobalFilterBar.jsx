@@ -1,73 +1,20 @@
 import { useEffect, useState } from "react";
 import {
-  CalendarClock,
   ChevronDown,
   ChevronUp,
   Filter,
   RotateCcw,
 } from "lucide-react";
 import { useAnalyticsFilters } from "../../context/AnalyticsFiltersContext";
+import {
+  ANALYTICS_DATE_PRESET_OPTIONS,
+  buildEndIso,
+  buildStartIso,
+  getPresetRange,
+  getPresetFromRange,
+  toDateInputValue,
+} from "../../utils/analyticsDateRange";
 import DashboardCard from "./DashboardCard";
-
-const toDateInputValue = (isoDate) => {
-  if (!isoDate) return "";
-  const parsed = new Date(isoDate);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toISOString().slice(0, 10);
-};
-
-const buildStartIso = (inputDate) => new Date(`${inputDate}T00:00:00.000Z`).toISOString();
-const buildEndIso = (inputDate) => new Date(`${inputDate}T23:59:59.999Z`).toISOString();
-
-const calculatePreset = (startIso, endIso) => {
-  const start = new Date(startIso);
-  const end = new Date(endIso);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "Custom";
-
-  const startUtc = Date.UTC(
-    start.getUTCFullYear(),
-    start.getUTCMonth(),
-    start.getUTCDate()
-  );
-  const endUtc = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
-  const diffDays = Math.round((endUtc - startUtc) / 86400000) + 1;
-
-  if (diffDays <= 1) return "Today";
-  if (diffDays === 7) return "7D";
-  if (diffDays === 30) return "30D";
-  if (diffDays === 90) return "90D";
-  return "Custom";
-};
-
-const getPresetRange = (preset) => {
-  const now = new Date();
-  const dayEnd = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999)
-  );
-
-  if (preset === "Today") {
-    const dayStart = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)
-    );
-    return { start: dayStart.toISOString(), end: dayEnd.toISOString() };
-  }
-
-  const presetDays = {
-    "7D": 7,
-    "30D": 30,
-    "90D": 90,
-  };
-
-  const totalDays = presetDays[preset] || 30;
-  const start = new Date(dayEnd);
-  start.setUTCDate(start.getUTCDate() - (totalDays - 1));
-  start.setUTCHours(0, 0, 0, 0);
-
-  return {
-    start: start.toISOString(),
-    end: dayEnd.toISOString(),
-  };
-};
 
 const inputClassName =
   "h-10 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition-all duration-200 ease-in-out focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-400/40";
@@ -75,11 +22,7 @@ const inputClassName =
 const SelectField = ({ label, value, options, onChange }) => (
   <label className="flex flex-col gap-1.5 text-sm">
     <span className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</span>
-    <select
-      value={value}
-      onChange={onChange}
-      className={inputClassName}
-    >
+    <select value={value} onChange={onChange} className={inputClassName}>
       <option value="">All</option>
       {options.map((item) => (
         <option key={item} value={item}>
@@ -91,48 +34,122 @@ const SelectField = ({ label, value, options, onChange }) => (
 );
 
 const GlobalFilterBar = ({ options, loading, showCompareToggle = true }) => {
-  const { filters, setFilters, resetFilters } = useAnalyticsFilters();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const { filters, applyFilterPatch, resetFilters } = useAnalyticsFilters();
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [draftFilters, setDraftFilters] = useState(filters);
-  const [selectedPreset, setSelectedPreset] = useState("Custom");
+  const safeOptions = {
+    regions: options?.regions || [],
+    countries: options?.countries || [],
+    categories: options?.categories || [],
+    subcategories: options?.subcategories || [],
+    devices: options?.devices || [],
+  };
 
   useEffect(() => {
     setDraftFilters(filters);
-    setSelectedPreset(calculatePreset(filters.start, filters.end));
   }, [filters]);
 
+  const selectedPreset =
+    draftFilters.mapDateRange === "custom"
+      ? "custom"
+      : getPresetFromRange(draftFilters.start, draftFilters.end);
+
   const updateDraft = (key, value) => {
-    setDraftFilters((prev) => ({ ...prev, [key]: value }));
+    setDraftFilters((previous) => ({ ...previous, [key]: value }));
   };
 
   const handlePreset = (preset) => {
-    setSelectedPreset(preset);
-    if (preset === "Custom") return;
+    if (preset === "custom") {
+      updateDraft("mapDateRange", "custom");
+      return;
+    }
     const range = getPresetRange(preset);
-    setDraftFilters((prev) => ({
-      ...prev,
+    setDraftFilters((previous) => ({
+      ...previous,
       start: range.start,
       end: range.end,
+      mapDateRange: preset,
     }));
   };
 
-  const applyFilters = () => {
-    const safeStart = new Date(draftFilters.start);
-    const safeEnd = new Date(draftFilters.end);
+  const applyFilters = async () => {
+    const currentPreset =
+      filters.mapDateRange === "custom"
+        ? "custom"
+        : getPresetFromRange(filters.start, filters.end);
+    const hasDateChanged =
+      draftFilters.start !== filters.start ||
+      draftFilters.end !== filters.end ||
+      selectedPreset !== currentPreset;
 
-    if (safeStart.getTime() > safeEnd.getTime()) {
-      setFilters({
-        ...draftFilters,
-        start: draftFilters.end,
-        end: draftFilters.start,
-      });
-      return;
-    }
-
-    setFilters(draftFilters);
+    await applyFilterPatch(draftFilters, {
+      persistDateRange: hasDateChanged,
+      datePreset: selectedPreset,
+    });
   };
 
-  const quickDateButtons = ["Today", "7D", "30D", "90D", "Custom"];
+  const dateControls = (
+    <>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {ANALYTICS_DATE_PRESET_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => handlePreset(option.value)}
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-200 ease-in-out ${
+              selectedPreset === option.value
+                ? "bg-cyan-500/25 text-cyan-100 ring-1 ring-cyan-300/60"
+                : "bg-slate-800/70 text-slate-300 hover:bg-slate-700/80 hover:text-slate-100"
+            }`}
+          >
+            {option.shortLabel}
+          </button>
+        ))}
+      </div>
+
+      {selectedPreset === "custom" && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+              Start Date
+            </span>
+            <input
+              type="date"
+              value={toDateInputValue(draftFilters.start)}
+              onChange={(event) => {
+                if (!event.target.value) return;
+                setDraftFilters((previous) => ({
+                  ...previous,
+                  start: buildStartIso(event.target.value),
+                  mapDateRange: "custom",
+                }));
+              }}
+              className={inputClassName}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+              End Date
+            </span>
+            <input
+              type="date"
+              value={toDateInputValue(draftFilters.end)}
+              onChange={(event) => {
+                if (!event.target.value) return;
+                setDraftFilters((previous) => ({
+                  ...previous,
+                  end: buildEndIso(event.target.value),
+                  mapDateRange: "custom",
+                }));
+              }}
+              className={inputClassName}
+            />
+          </label>
+        </div>
+      )}
+    </>
+  );
 
   return (
     <DashboardCard
@@ -150,7 +167,7 @@ const GlobalFilterBar = ({ options, loading, showCompareToggle = true }) => {
 
         <button
           type="button"
-          onClick={() => setIsCollapsed((prev) => !prev)}
+          onClick={() => setIsCollapsed((previous) => !previous)}
           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-slate-200 transition-all duration-200 ease-in-out hover:border-cyan-400/50 hover:bg-slate-700/70"
         >
           {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
@@ -158,175 +175,108 @@ const GlobalFilterBar = ({ options, loading, showCompareToggle = true }) => {
         </button>
       </div>
 
+      {dateControls}
+
       {!isCollapsed && (
-        <>
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-slate-800/60 px-2.5 py-1 text-xs text-slate-300">
-              <CalendarClock size={12} />
-              Quick Date
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <SelectField
+            label="Region"
+            value={draftFilters.region}
+            options={safeOptions.regions}
+            onChange={(event) => updateDraft("region", event.target.value)}
+          />
+
+          <SelectField
+            label="Country"
+            value={draftFilters.country}
+            options={safeOptions.countries}
+            onChange={(event) => updateDraft("country", event.target.value)}
+          />
+
+          <SelectField
+            label="Category"
+            value={draftFilters.category}
+            options={safeOptions.categories}
+            onChange={(event) => updateDraft("category", event.target.value)}
+          />
+
+          <SelectField
+            label="Subcategory"
+            value={draftFilters.subcategory}
+            options={safeOptions.subcategories}
+            onChange={(event) => updateDraft("subcategory", event.target.value)}
+          />
+
+          <SelectField
+            label="Device"
+            value={draftFilters.device}
+            options={safeOptions.devices}
+            onChange={(event) => updateDraft("device", event.target.value)}
+          />
+
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+              Group By
             </span>
-            {quickDateButtons.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => handlePreset(option)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-200 ease-in-out ${
-                  selectedPreset === option
-                    ? "bg-cyan-500/25 text-cyan-100 ring-1 ring-cyan-300/60"
-                    : "bg-slate-800/70 text-slate-300 hover:bg-slate-700/80 hover:text-slate-100"
-                }`}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
+            <select
+              value={draftFilters.groupBy}
+              onChange={(event) => updateDraft("groupBy", event.target.value)}
+              className={inputClassName}
+            >
+              <option value="hour">Hour</option>
+              <option value="day">Day</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+            </select>
+          </label>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                Start Date
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+              Timezone
+            </span>
+            <input
+              type="text"
+              value={draftFilters.timezone}
+              readOnly
+              className={`${inputClassName} cursor-not-allowed opacity-70`}
+            />
+          </label>
+
+          {showCompareToggle && (
+            <label className="flex items-end pb-1">
+              <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-800/70 px-3 py-2 text-sm text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={Boolean(draftFilters.compareMode)}
+                  onChange={(event) => updateDraft("compareMode", event.target.checked)}
+                  className="h-4 w-4 rounded border-slate-500 bg-slate-900 text-cyan-400 focus:ring-cyan-400/60"
+                />
+                Compare with Previous Period
               </span>
-              <input
-                type="date"
-                value={toDateInputValue(draftFilters.start)}
-                onChange={(e) => {
-                  if (!e.target.value) return;
-                  updateDraft("start", buildStartIso(e.target.value));
-                  setSelectedPreset("Custom");
-                }}
-                className={inputClassName}
-              />
             </label>
-
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                End Date
-              </span>
-              <input
-                type="date"
-                value={toDateInputValue(draftFilters.end)}
-                onChange={(e) => {
-                  if (!e.target.value) return;
-                  updateDraft("end", buildEndIso(e.target.value));
-                  setSelectedPreset("Custom");
-                }}
-                className={inputClassName}
-              />
-            </label>
-
-            <SelectField
-              label="Region"
-              value={draftFilters.region}
-              options={options.regions}
-              onChange={(e) => updateDraft("region", e.target.value)}
-            />
-
-            <SelectField
-              label="Country"
-              value={draftFilters.country}
-              options={options.countries}
-              onChange={(e) => updateDraft("country", e.target.value)}
-            />
-
-            <SelectField
-              label="Category"
-              value={draftFilters.category}
-              options={options.categories}
-              onChange={(e) => updateDraft("category", e.target.value)}
-            />
-
-            <SelectField
-              label="Subcategory"
-              value={draftFilters.subcategory}
-              options={options.subcategories}
-              onChange={(e) => updateDraft("subcategory", e.target.value)}
-            />
-
-            <SelectField
-              label="Device"
-              value={draftFilters.device}
-              options={options.devices}
-              onChange={(e) => updateDraft("device", e.target.value)}
-            />
-
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                Group By
-              </span>
-              <select
-                value={draftFilters.groupBy}
-                onChange={(e) => updateDraft("groupBy", e.target.value)}
-                className={inputClassName}
-              >
-                <option value="hour">Hour</option>
-                <option value="day">Day</option>
-                <option value="week">Week</option>
-                <option value="month">Month</option>
-              </select>
-            </label>
-
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                Timezone
-              </span>
-              <input
-                type="text"
-                value={draftFilters.timezone}
-                readOnly
-                className={`${inputClassName} cursor-not-allowed opacity-70`}
-              />
-            </label>
-
-            {showCompareToggle && (
-              <label className="flex items-end pb-1">
-                <span className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-800/70 px-3 py-2 text-sm text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(draftFilters.compareMode)}
-                    onChange={(e) => updateDraft("compareMode", e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-500 bg-slate-900 text-cyan-400 focus:ring-cyan-400/60"
-                  />
-                  Compare with Previous Period
-                </span>
-              </label>
-            )}
-          </div>
-
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-            <div className="text-xs text-slate-400">
-              {loading ? "Loading filter options..." : "Filters ready"}
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-800/70 px-4 py-2 text-sm font-medium text-slate-200 transition-all duration-200 ease-in-out hover:bg-slate-700/80"
-              >
-                <RotateCcw size={14} />
-                Clear All
-              </button>
-              <button
-                type="button"
-                onClick={applyFilters}
-                className="rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-700/20 transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:opacity-95"
-              >
-                Apply Filters
-              </button>
-            </div>
-          </div>
-        </>
+          )}
+        </div>
       )}
 
-      {isCollapsed && (
-        <p className="text-sm text-slate-400">
-          Filters are collapsed. Expand to update date range and dimensions.
-        </p>
-      )}
-
-      {loading && !isCollapsed && (
-        <p className="mt-3 text-xs text-slate-500">Refreshing available option values...</p>
-      )}
+      <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-800/70 px-4 py-2 text-sm font-medium text-slate-200 transition-all duration-200 ease-in-out hover:bg-slate-700/80"
+          >
+            <RotateCcw size={14} />
+            Clear All
+          </button>
+          <button
+            type="button"
+            onClick={applyFilters}
+            className="rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-700/20 transition-all duration-200 ease-in-out hover:-translate-y-0.5 hover:opacity-95"
+          >
+            Apply Filters
+          </button>
+        </div>
+      </div>
     </DashboardCard>
   );
 };

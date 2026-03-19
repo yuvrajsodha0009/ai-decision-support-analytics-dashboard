@@ -6,7 +6,7 @@ import {
   getPresetFromRange,
   getPresetRange,
   toDateInputValue,
-} from "../utils/geoDateRange";
+} from "../utils/analyticsDateRange";
 
 const MAP_FILTER_KEYS = new Set([
   "region",
@@ -23,7 +23,7 @@ const MAP_FILTER_KEYS = new Set([
 ]);
 
 export const useGeoAnalyticsFilters = () => {
-  const { filters, setFilters } = useAnalyticsFilters();
+  const { filters, setFilters, applyFilterPatch } = useAnalyticsFilters();
 
   const mapFilters = useMemo(
     () => ({
@@ -119,24 +119,29 @@ export const useGeoAnalyticsFilters = () => {
   );
 
   const applyDatePreset = useCallback(
-    (preset) => {
+    async (preset) => {
       if (preset === "custom") {
         setFilters({ mapDateRange: "custom" });
         return;
       }
 
       const range = getPresetRange(preset);
-      setFilters({
-        mapDateRange: preset,
-        start: range.start,
-        end: range.end,
-      });
+      await applyFilterPatch(
+        {
+          start: range.start,
+          end: range.end,
+        },
+        {
+          persistDateRange: true,
+          datePreset: preset,
+        }
+      );
     },
-    [setFilters]
+    [applyFilterPatch, setFilters]
   );
 
   const applyCustomDateRange = useCallback(
-    (startDate, endDate) => {
+    async (startDate, endDate) => {
       if (!startDate || !endDate) return;
 
       let nextStartDate = startDate;
@@ -151,18 +156,23 @@ export const useGeoAnalyticsFilters = () => {
         endIso = buildEndIso(startDate);
       }
 
-      setFilters({
-        mapDateRange: "custom",
-        start: startIso,
-        end: endIso,
-      });
+      await applyFilterPatch(
+        {
+          start: startIso,
+          end: endIso,
+        },
+        {
+          persistDateRange: true,
+          datePreset: "custom",
+        }
+      );
 
       return {
         startDate: nextStartDate,
         endDate: nextEndDate,
       };
     },
-    [setFilters]
+    [applyFilterPatch]
   );
 
   const drillToLevel = useCallback(

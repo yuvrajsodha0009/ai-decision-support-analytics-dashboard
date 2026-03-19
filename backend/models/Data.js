@@ -36,8 +36,8 @@ const dataSchema = new mongoose.Schema(
       type: Number,
       default: 1
     },
-
     isActive: {
+
       type: Boolean,
       default: true
     },

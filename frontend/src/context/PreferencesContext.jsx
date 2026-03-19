@@ -1,8 +1,8 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 const defaultPreferences = {
   theme: "dark",
-  dateRange: "30d",
   density: "comfortable",
   animations: true,
 };
@@ -18,8 +18,9 @@ const getInitialPreferences = () => {
     const raw = localStorage.getItem("userPreferences");
     if (!raw) return defaultPreferences;
     const parsed = JSON.parse(raw);
-    return { ...defaultPreferences, ...parsed };
-  } catch (error) {
+    const { dateRange: LEGACY_DATE_RANGE, ...safeParsed } = parsed || {};
+    return { ...defaultPreferences, ...safeParsed };
+  } catch {
     return defaultPreferences;
   }
 };

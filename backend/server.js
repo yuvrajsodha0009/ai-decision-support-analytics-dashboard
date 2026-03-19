@@ -30,6 +30,7 @@ app.use("/api/data", require("./routes/dataRoutes"));
 
 // Analytics
 app.use("/api/analytics", require("./routes/analyticsRoutes")); // Rawsales analytics
+app.use("/api/ai", require("./routes/aiRoutes")); // Centralized AI gateway
 app.use("/api", require("./routes/mapAnalyticsRoutes")); // Map drill-down analytics
 app.use("/api", require("./routes/mapGeoJsonRoutes")); // Map geometry proxy
 app.use("/api", require("./routes/categoryAnalytics")); // Category drill-down analytics

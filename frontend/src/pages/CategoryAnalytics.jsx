@@ -12,10 +12,25 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { BarChart3, ChevronLeft, LineChart as LineChartIcon } from "lucide-react";
+import {
+  BarChart3,
+  ChevronDown,
+  ChevronLeft,
+  ChevronUp,
+  Filter,
+  LineChart as LineChartIcon,
+} from "lucide-react";
 import { useAnalyticsFilters } from "../context/AnalyticsFiltersContext";
 import { fetchCategoryAnalytics } from "../Services/categoryAnalyticsApi";
 import { fetchAnalyticsFilterOptions } from "../Services/analyticsApi";
+import {
+  ANALYTICS_DATE_PRESET_OPTIONS,
+  buildEndIso,
+  buildStartIso,
+  getPresetFromRange,
+  getPresetRange,
+  toDateInputValue,
+} from "../utils/analyticsDateRange";
 
 const LINE_COLORS = [
   "#7aa2ff",
@@ -55,13 +70,6 @@ const METRIC_LABELS = {
   aov: "Average Order Value",
   revenueShare: "Revenue Share %",
 };
-
-const PRESET_OPTIONS = [
-  { value: "last7", label: "Last 7 days" },
-  { value: "last30", label: "Last 30 days" },
-  { value: "last90", label: "Last 90 days" },
-  { value: "custom", label: "Custom" },
-];
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-IN", {
@@ -103,65 +111,6 @@ const getNextSortDirection = (currentSort, key) => {
   return currentSort.direction === "asc" ? "desc" : "asc";
 };
 
-const toDateInputValue = (isoDate) => {
-  if (!isoDate) return "";
-  const parsed = new Date(isoDate);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toISOString().slice(0, 10);
-};
-
-const buildStartIso = (inputDate) =>
-  new Date(`${inputDate}T00:00:00.000Z`).toISOString();
-const buildEndIso = (inputDate) =>
-  new Date(`${inputDate}T23:59:59.999Z`).toISOString();
-
-const getPresetRange = (preset) => {
-  const now = new Date();
-  const dayEnd = new Date(
-    Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      23,
-      59,
-      59,
-      999
-    )
-  );
-
-  const presetDays = {
-    last7: 7,
-    last30: 30,
-    last90: 90,
-  };
-
-  const totalDays = presetDays[preset] || 30;
-  const start = new Date(dayEnd);
-  start.setUTCDate(start.getUTCDate() - (totalDays - 1));
-  start.setUTCHours(0, 0, 0, 0);
-
-  return {
-    start: start.toISOString(),
-    end: dayEnd.toISOString(),
-  };
-};
-
-const sameInstant = (left, right) => {
-  const leftTime = new Date(left).getTime();
-  const rightTime = new Date(right).getTime();
-  return Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime === rightTime;
-};
-
-const getPresetFromRange = (startIso, endIso) => {
-  for (const preset of ["last7", "last30", "last90"]) {
-    const range = getPresetRange(preset);
-    if (sameInstant(startIso, range.start) && sameInstant(endIso, range.end)) {
-      return preset;
-    }
-  }
-  return "custom";
-};
-
 const formatDateTick = (value, groupBy) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
@@ -197,7 +146,7 @@ const formatDateTick = (value, groupBy) => {
 const CategoryAnalytics = () => {
   const navigate = useNavigate();
   const { categoryName } = useParams();
-  const { filters, setFilters } = useAnalyticsFilters();
+  const { filters, isHydrated, applyFilterPatch } = useAnalyticsFilters();
 
   const allowedGroupBy = new Set(["day", "week", "month"]);
   const initialGroupBy = allowedGroupBy.has(filters.groupBy) ? filters.groupBy : "day";
@@ -231,41 +180,29 @@ const CategoryAnalytics = () => {
     toDateInputValue(filters.end)
   );
   const [chartType, setChartType] = useState("line");
+  const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(true);
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [categoriesError, setCategoriesError] = useState("");
   const [showTotalSeries, setShowTotalSeries] = useState(false);
-  const [hasAppliedInitialLast30, setHasAppliedInitialLast30] = useState(false);
 
   useEffect(() => {
-    setSelectedDateRangePreset(getPresetFromRange(filters.start, filters.end));
+    setSelectedDateRangePreset(
+      filters.mapDateRange === "custom"
+        ? "custom"
+        : getPresetFromRange(filters.start, filters.end)
+    );
     setCustomStartDate(toDateInputValue(filters.start));
     setCustomEndDate(toDateInputValue(filters.end));
-  }, [filters.start, filters.end]);
-
-  useEffect(() => {
-    if (hasAppliedInitialLast30) return;
-
-    const initialPreset = getPresetFromRange(filters.start, filters.end);
-    if (initialPreset === "custom") {
-      const range = getPresetRange("last30");
-      setSelectedDateRangePreset("last30");
-      setCustomStartDate(toDateInputValue(range.start));
-      setCustomEndDate(toDateInputValue(range.end));
-      setFilters({
-        start: range.start,
-        end: range.end,
-      });
-    }
-
-    setHasAppliedInitialLast30(true);
-  }, [hasAppliedInitialLast30, filters.start, filters.end, setFilters]);
+  }, [filters.end, filters.mapDateRange, filters.start]);
 
   useEffect(() => {
     setShowTotalSeries(false);
   }, [categoryLabel]);
 
   useEffect(() => {
+    if (!isHydrated) return undefined;
+
     let cancelled = false;
 
     const loadCategoryOptions = async () => {
@@ -318,6 +255,7 @@ const CategoryAnalytics = () => {
       cancelled = true;
     };
   }, [
+    isHydrated,
     filters.start,
     filters.end,
     filters.timezone,
@@ -329,6 +267,8 @@ const CategoryAnalytics = () => {
   ]);
 
   useEffect(() => {
+    if (!isHydrated) return undefined;
+
     let cancelled = false;
 
     const loadAnalytics = async () => {
@@ -399,6 +339,7 @@ const CategoryAnalytics = () => {
       cancelled = true;
     };
   }, [
+    isHydrated,
     categoryLabel,
     filters.start,
     filters.end,
@@ -538,18 +479,24 @@ const CategoryAnalytics = () => {
     "h-8 rounded-md border border-[#475773] bg-[#1f2a3d] px-2.5 text-xs text-[#d8e4f6] outline-none transition-colors focus:border-[#7ea2dc] focus:ring-1 focus:ring-[#7ea2dc]/35";
   const controlLabelClassName = "text-[10px] uppercase tracking-wide text-[#9aa0a6]";
 
-  const handleDatePresetChange = (presetValue) => {
+  const handleDatePresetChange = async (presetValue) => {
     setSelectedDateRangePreset(presetValue);
     if (presetValue === "custom") return;
 
     const range = getPresetRange(presetValue);
-    setFilters({
-      start: range.start,
-      end: range.end,
-    });
+    await applyFilterPatch(
+      {
+        start: range.start,
+        end: range.end,
+      },
+      {
+        persistDateRange: true,
+        datePreset: presetValue,
+      }
+    );
   };
 
-  const applyCustomRange = () => {
+  const applyCustomRange = async () => {
     if (!customStartDate || !customEndDate) return;
 
     let startIso = buildStartIso(customStartDate);
@@ -564,10 +511,16 @@ const CategoryAnalytics = () => {
     setCustomStartDate(nextStartDate);
     setCustomEndDate(nextEndDate);
 
-    setFilters({
-      start: startIso,
-      end: endIso,
-    });
+    await applyFilterPatch(
+      {
+        start: startIso,
+        end: endIso,
+      },
+      {
+        persistDateRange: true,
+        datePreset: "custom",
+      }
+    );
   };
 
   const handleCategoryChange = (nextCategory) => {
@@ -598,39 +551,37 @@ const CategoryAnalytics = () => {
         </div>
 
         <div className="mb-3 rounded-xl border border-white/10 bg-slate-900/55 backdrop-blur-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-3 py-3">
+            <div className="inline-flex items-center gap-2 text-sm text-[#e6e6e6]">
+              <span className="rounded-md border border-cyan-400/25 bg-cyan-400/10 p-1.5 text-cyan-200">
+                <Filter size={14} />
+              </span>
+              Global Filters
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsFiltersCollapsed((previous) => !previous)}
+              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-xs text-slate-100 transition-colors hover:border-cyan-400/55 hover:text-cyan-100"
+            >
+              {isFiltersCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+              {isFiltersCollapsed ? "Expand Filters" : "Collapse Filters"}
+            </button>
+          </div>
+
           <div className="flex flex-wrap items-end gap-2 border-b border-white/10 px-3 py-2">
             <label className="flex min-w-[170px] flex-col gap-1">
               <span className={`${controlLabelClassName} text-[#b8c7e0]`}>Date Range</span>
               <select
                 value={selectedDateRangePreset}
-                onChange={(e) => handleDatePresetChange(e.target.value)}
+                onChange={(event) => handleDatePresetChange(event.target.value)}
                 className={highlightedInputClassName}
               >
-                {PRESET_OPTIONS.map((option) => (
+                {ANALYTICS_DATE_PRESET_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
               </select>
-            </label>
-
-            <label className="flex min-w-[200px] flex-col gap-1">
-              <span className={`${controlLabelClassName} text-[#b8c7e0]`}>Category</span>
-              <select
-                value={categoryLabel}
-                onChange={(event) => handleCategoryChange(event.target.value)}
-                className={highlightedInputClassName}
-                disabled={categoriesLoading && categories.length === 0}
-              >
-                {(categories.length > 0 ? categories : [categoryLabel || ""]).map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-              {categoriesError && (
-                <span className="text-[10px] text-[#b98585]">{categoriesError}</span>
-              )}
             </label>
           </div>
 
@@ -664,51 +615,71 @@ const CategoryAnalytics = () => {
             </div>
           )}
 
-          <div className="flex flex-wrap items-end gap-2 px-3 py-2">
-            <label className="flex min-w-[130px] flex-col gap-1">
-              <span className={`${controlLabelClassName} text-[#9fb2cf]`}>Metric</span>
-              <select
-                value={selectedMetric}
-                onChange={(e) => setSelectedMetric(e.target.value)}
-                className={secondaryInputClassName}
-              >
-                {METRIC_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {!isFiltersCollapsed && (
+            <div className="flex flex-wrap items-end gap-2 px-3 py-2">
+              <label className="flex min-w-[200px] flex-col gap-1">
+                <span className={`${controlLabelClassName} text-[#b8c7e0]`}>Category</span>
+                <select
+                  value={categoryLabel}
+                  onChange={(event) => handleCategoryChange(event.target.value)}
+                  className={highlightedInputClassName}
+                  disabled={categoriesLoading && categories.length === 0}
+                >
+                  {(categories.length > 0 ? categories : [categoryLabel || ""]).map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+                {categoriesError && (
+                  <span className="text-[10px] text-[#b98585]">{categoriesError}</span>
+                )}
+              </label>
 
-            <label className="flex min-w-[170px] flex-col gap-1">
-              <span className={`${controlLabelClassName} text-[#9fb2cf]`}>Breakdown</span>
-              <select
-                value={selectedBreakdown}
-                onChange={(e) => setSelectedBreakdown(e.target.value)}
-                className={secondaryInputClassName}
-              >
-                {BREAKDOWN_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <label className="flex min-w-[130px] flex-col gap-1">
+                <span className={`${controlLabelClassName} text-[#9fb2cf]`}>Metric</span>
+                <select
+                  value={selectedMetric}
+                  onChange={(event) => setSelectedMetric(event.target.value)}
+                  className={secondaryInputClassName}
+                >
+                  {METRIC_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-            <label className="flex min-w-[110px] flex-col gap-1">
-              <span className={`${controlLabelClassName} text-[#9fb2cf]`}>Group By</span>
-              <select
-                value={localGroupBy}
-                onChange={(e) => setLocalGroupBy(e.target.value)}
-                className={secondaryInputClassName}
-              >
-                <option value="day">Day</option>
-                <option value="week">Week</option>
-                <option value="month">Month</option>
-              </select>
-            </label>
+              <label className="flex min-w-[170px] flex-col gap-1">
+                <span className={`${controlLabelClassName} text-[#9fb2cf]`}>Breakdown</span>
+                <select
+                  value={selectedBreakdown}
+                  onChange={(event) => setSelectedBreakdown(event.target.value)}
+                  className={secondaryInputClassName}
+                >
+                  {BREAKDOWN_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-          </div>
+              <label className="flex min-w-[110px] flex-col gap-1">
+                <span className={`${controlLabelClassName} text-[#9fb2cf]`}>Group By</span>
+                <select
+                  value={localGroupBy}
+                  onChange={(event) => setLocalGroupBy(event.target.value)}
+                  className={secondaryInputClassName}
+                >
+                  <option value="day">Day</option>
+                  <option value="week">Week</option>
+                  <option value="month">Month</option>
+                </select>
+              </label>
+            </div>
+          )}
         </div>
 
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -741,10 +712,17 @@ const CategoryAnalytics = () => {
           </div>
         </div>
 
-        {loading && <p className="py-4 text-sm text-[#9aa0a6]">Loading category analytics...</p>}
-        {!loading && error && <p className="py-4 text-sm text-rose-400">{error}</p>}
+        {!isHydrated && (
+          <p className="py-4 text-sm text-[#9aa0a6]">Loading saved filters...</p>
+        )}
+        {isHydrated && loading && (
+          <p className="py-4 text-sm text-[#9aa0a6]">Loading category analytics...</p>
+        )}
+        {isHydrated && !loading && error && (
+          <p className="py-4 text-sm text-rose-400">{error}</p>
+        )}
 
-        {!loading && !error && (
+        {isHydrated && !loading && !error && (
           <div className="h-[480px] w-full overflow-x-auto">
             <div className="h-full min-w-[920px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -873,7 +851,11 @@ const CategoryAnalytics = () => {
           </div>
         )}
 
-        {!loading && !error && chartData.length > 0 && activeSubcategories.length === 0 && (
+        {isHydrated &&
+          !loading &&
+          !error &&
+          chartData.length > 0 &&
+          activeSubcategories.length === 0 && (
           <p className="py-3 text-xs text-[#d4a650]">
             No values selected. Enable {breakdownLabel.toLowerCase()} entries from the table below.
           </p>
@@ -935,7 +917,7 @@ const CategoryAnalytics = () => {
               </tr>
             </thead>
             <tbody>
-              {!loading && (
+              {isHydrated && !loading && (
                 <tr
                   className={`border-b border-white/10 text-[#f1f3f4] ${
                     showTotalSeries ? "bg-cyan-500/15" : "bg-slate-900/60"
@@ -964,7 +946,8 @@ const CategoryAnalytics = () => {
                   </td>
                 </tr>
               )}
-              {!loading &&
+              {isHydrated &&
+                !loading &&
                 sortedTableData.map((row) => {
                   const checked = activeSubcategories.includes(row.subcategory);
                   const swatchColor = colorMap[row.subcategory] || LINE_COLORS[0];
@@ -1014,7 +997,7 @@ const CategoryAnalytics = () => {
           </table>
         </div>
 
-        {!loading && !error && sortedTableData.length === 0 && (
+        {isHydrated && !loading && !error && sortedTableData.length === 0 && (
           <p className="py-4 text-sm text-[#9aa0a6]">
             No {breakdownLabel.toLowerCase()} analytics found for the selected date range.
           </p>

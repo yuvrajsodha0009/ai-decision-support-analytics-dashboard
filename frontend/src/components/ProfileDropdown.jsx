@@ -110,6 +110,7 @@ const ProfileDropdown = ({ variant = "top" }) => {
     localStorage.removeItem("userName");
     localStorage.removeItem("userEmail");
     localStorage.removeItem("userAvatar");
+    window.dispatchEvent(new Event("auth-changed"));
     navigate("/auth", { replace: true });
   };
 

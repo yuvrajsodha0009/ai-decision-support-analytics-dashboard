@@ -3,6 +3,125 @@ const User = require("../models/User");
 const fs = require("fs");
 const path = require("path");
 
+const ANALYTICS_DATE_PRESETS = ["today", "last7", "last30", "last90", "custom"];
+
+const getPresetRange = (preset) => {
+  const now = new Date();
+  const dayEnd = new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      23,
+      59,
+      59,
+      999
+    )
+  );
+
+  if (preset === "today") {
+    const dayStart = new Date(dayEnd);
+    dayStart.setUTCHours(0, 0, 0, 0);
+    return {
+      start: dayStart.toISOString(),
+      end: dayEnd.toISOString(),
+    };
+  }
+
+  const presetDays = {
+    last7: 7,
+    last30: 30,
+    last90: 90,
+  };
+
+  const totalDays = presetDays[preset] || 7;
+  const start = new Date(dayEnd);
+  start.setUTCDate(start.getUTCDate() - (totalDays - 1));
+  start.setUTCHours(0, 0, 0, 0);
+
+  return {
+    start: start.toISOString(),
+    end: dayEnd.toISOString(),
+  };
+};
+
+const sameInstant = (left, right) => {
+  const leftTime = new Date(left).getTime();
+  const rightTime = new Date(right).getTime();
+  return Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime === rightTime;
+};
+
+const inferPresetFromRange = (startIso, endIso) => {
+  for (const preset of ["today", "last7", "last30", "last90"]) {
+    const range = getPresetRange(preset);
+    if (sameInstant(startIso, range.start) && sameInstant(endIso, range.end)) {
+      return preset;
+    }
+  }
+
+  return "custom";
+};
+
+const normalizeAnalyticsDateRangePreference = (input = {}) => {
+  const rawPreset =
+    typeof input.preset === "string" ? input.preset.trim().toLowerCase() : "";
+
+  if (rawPreset && !ANALYTICS_DATE_PRESETS.includes(rawPreset)) {
+    return null;
+  }
+
+  if (rawPreset && rawPreset !== "custom") {
+    const presetRange = getPresetRange(rawPreset);
+    return {
+      preset: rawPreset,
+      start: presetRange.start,
+      end: presetRange.end,
+    };
+  }
+
+  if (!input.start || !input.end) {
+    if (rawPreset === "custom") {
+      return null;
+    }
+
+    const defaultRange = getPresetRange("last7");
+    return {
+      preset: "last7",
+      start: defaultRange.start,
+      end: defaultRange.end,
+    };
+  }
+
+  const start = new Date(input.start);
+  const end = new Date(input.end);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return null;
+  }
+
+  let normalizedStart = start.toISOString();
+  let normalizedEnd = end.toISOString();
+
+  if (start.getTime() > end.getTime()) {
+    normalizedStart = end.toISOString();
+    normalizedEnd = start.toISOString();
+  }
+
+  if (rawPreset === "custom") {
+    return {
+      preset: "custom",
+      start: normalizedStart,
+      end: normalizedEnd,
+    };
+  }
+
+  return {
+    preset: inferPresetFromRange(normalizedStart, normalizedEnd),
+    start: normalizedStart,
+    end: normalizedEnd,
+  };
+};
+
 exports.getMe = async (req, res) => {
   try {
     const user = await User.findById(req.userId).select("-password");
@@ -81,6 +200,38 @@ exports.changePassword = async (req, res) => {
   } catch (err) {
     console.error("Change password error:", err);
     res.status(500).json({ message: "Failed to change password" });
+  }
+};
+
+exports.updateAnalyticsDateRangePreference = async (req, res) => {
+  try {
+    const normalized = normalizeAnalyticsDateRangePreference(req.body);
+
+    if (!normalized) {
+      return res.status(400).json({
+        message:
+          "Invalid analytics date range. Provide a valid preset or both start and end dates.",
+      });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.preferences = user.preferences || {};
+    user.preferences.analyticsDateRange = normalized;
+    await user.save();
+
+    const safeUser = await User.findById(req.userId).select("-password");
+    return res.json({
+      message: "Analytics date range updated successfully",
+      analyticsDateRange: safeUser?.preferences?.analyticsDateRange || normalized,
+      user: safeUser,
+    });
+  } catch (err) {
+    console.error("Update analytics date range preference error:", err);
+    return res.status(500).json({ message: "Failed to update analytics date range" });
   }
 };
 

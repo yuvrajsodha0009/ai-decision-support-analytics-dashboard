@@ -4,3 +4,9 @@ backend/uploads/
 backend/CSV Files/
 dist/
 build/
+python-ai-service/.env
+python-ai-service/.deps/
+python-ai-service/venv/
+python-ai-service/__pycache__/
+python-ai-service/**/*.pyc
+python-ai-service/**/__pycache__/

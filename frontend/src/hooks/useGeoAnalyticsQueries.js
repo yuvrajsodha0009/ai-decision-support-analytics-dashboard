@@ -66,7 +66,7 @@ const buildPreviousRange = (startIso, endIso) => {
   };
 };
 
-export const useGeoAnalyticsQueries = (filters) => {
+export const useGeoAnalyticsQueries = (filters, enabled = true) => {
   const baseParams = useMemo(() => pickBaseParams(filters), [filters]);
   const debouncedParams = useDebouncedValue(baseParams, 350);
 
@@ -101,6 +101,7 @@ export const useGeoAnalyticsQueries = (filters) => {
   const optionsQuery = useQuery({
     queryKey: ["geoAnalytics", "filter-options", debouncedParams],
     queryFn: () => fetchGeoFilterOptions({ ...debouncedParams, level: "world" }),
+    enabled,
     ...QUERY_PLACEHOLDER,
     staleTime: 2 * 60 * 1000,
   });
@@ -108,20 +109,21 @@ export const useGeoAnalyticsQueries = (filters) => {
   const summaryQuery = useQuery({
     queryKey: ["geoAnalytics", "summary", debouncedParams],
     queryFn: () => fetchGeoSummary(debouncedParams),
-    enabled: canQueryHierarchy,
+    enabled: enabled && canQueryHierarchy,
     ...QUERY_PLACEHOLDER,
   });
 
   const mapQuery = useQuery({
     queryKey: ["geoAnalytics", "map", mapParams],
     queryFn: () => fetchGeoMap(mapParams),
+    enabled,
     ...QUERY_PLACEHOLDER,
   });
 
   const topRegionsQuery = useQuery({
     queryKey: ["geoAnalytics", "top-regions", debouncedParams],
     queryFn: () => fetchGeoTopRegions({ ...debouncedParams, limit: 10 }),
-    enabled: canQueryHierarchy,
+    enabled: enabled && canQueryHierarchy,
     ...QUERY_PLACEHOLDER,
   });
 
@@ -129,35 +131,35 @@ export const useGeoAnalyticsQueries = (filters) => {
     queryKey: ["geoAnalytics", "revenue-trend", debouncedParams],
     queryFn: () =>
       fetchGeoRevenueTrend({ ...debouncedParams, groupBy: debouncedParams.groupBy || "day" }),
-    enabled: canQueryHierarchy,
+    enabled: enabled && canQueryHierarchy,
     ...QUERY_PLACEHOLDER,
   });
 
   const previousRevenueTrendQuery = useQuery({
     queryKey: ["geoAnalytics", "revenue-trend-previous", previousTrendParams],
     queryFn: () => fetchGeoRevenueTrend(previousTrendParams),
-    enabled: canQueryHierarchy,
+    enabled: enabled && canQueryHierarchy,
     ...QUERY_PLACEHOLDER,
   });
 
   const regionBarQuery = useQuery({
     queryKey: ["geoAnalytics", "region-bar", debouncedParams],
     queryFn: () => fetchGeoRegionBar({ ...debouncedParams, limit: 8 }),
-    enabled: canQueryHierarchy,
+    enabled: enabled && canQueryHierarchy,
     ...QUERY_PLACEHOLDER,
   });
 
   const categoryHeatmapQuery = useQuery({
     queryKey: ["geoAnalytics", "category-heatmap", debouncedParams],
     queryFn: () => fetchGeoCategoryHeatmap(debouncedParams),
-    enabled: canQueryHierarchy,
+    enabled: enabled && canQueryHierarchy,
     ...QUERY_PLACEHOLDER,
   });
 
   const insightsQuery = useQuery({
     queryKey: ["geoAnalytics", "insights", debouncedParams],
     queryFn: () => fetchGeoInsights({ ...debouncedParams, limit: 12 }),
-    enabled: canQueryHierarchy,
+    enabled: enabled && canQueryHierarchy,
     ...QUERY_PLACEHOLDER,
   });
 

@@ -24,7 +24,7 @@ const defaultOptions = {
 };
 
 const AdminSalesPage = () => {
-  const { filters } = useAnalyticsFilters();
+  const { filters, isHydrated } = useAnalyticsFilters();
   const [rows, setRows] = useState([]);
   const [filterOptions, setFilterOptions] = useState(defaultOptions);
   const [loadingOptions, setLoadingOptions] = useState(false);
@@ -39,6 +39,8 @@ const AdminSalesPage = () => {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!isHydrated) return undefined;
+
     let cancelled = false;
     const loadFilterOptions = async () => {
       setLoadingOptions(true);
@@ -56,13 +58,16 @@ const AdminSalesPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [filters]);
+  }, [filters, isHydrated]);
 
   useEffect(() => {
+    if (!isHydrated) return;
     setPagination((prev) => ({ ...prev, page: 1 }));
-  }, [filters]);
+  }, [filters, isHydrated]);
 
   useEffect(() => {
+    if (!isHydrated) return undefined;
+
     let cancelled = false;
 
     const loadRows = async () => {
@@ -93,7 +98,7 @@ const AdminSalesPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [filters, pagination.page, pagination.limit]);
+  }, [filters, pagination.page, pagination.limit, isHydrated]);
 
   const handleExport = async () => {
     try {
@@ -132,85 +137,98 @@ const AdminSalesPage = () => {
         loading={loadingOptions}
         showCompareToggle={false}
       />
-
-      {error && <p className="mb-4 text-sm text-rose-600">{error}</p>}
-
-      <div className="surface-card rounded-2xl border border-[var(--border-soft)] overflow-hidden">
-        <div className="overflow-x-auto overflow-y-auto max-h-[70vh]">
-          <table className="w-full border-collapse text-sm">
-            <thead className="table-head">
-              <tr>
-                <th className="p-3 text-left">Timestamp</th>
-                <th className="p-3 text-left">Transaction</th>
-                <th className="p-3 text-left">Region</th>
-                <th className="p-3 text-left">Country</th>
-                <th className="p-3 text-left">Category</th>
-                <th className="p-3 text-left">Subcategory</th>
-                <th className="p-3 text-left">Device</th>
-                <th className="p-3 text-right">Quantity</th>
-                <th className="p-3 text-right">Revenue</th>
-                <th className="p-3 text-left">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row._id} className="table-row table-row-hover">
-                  <td className="p-3">
-                    {row.timestamp ? new Date(row.timestamp).toLocaleString() : "N/A"}
-                  </td>
-                  <td className="p-3">{row.transactionId || "N/A"}</td>
-                  <td className="p-3">{row.region || "N/A"}</td>
-                  <td className="p-3">{row.country || "N/A"}</td>
-                  <td className="p-3">{row.category || "N/A"}</td>
-                  <td className="p-3">{row.subcategory || "N/A"}</td>
-                  <td className="p-3">{row.device || "N/A"}</td>
-                  <td className="p-3 text-right">{row.quantity ?? 0}</td>
-                  <td className="p-3 text-right">{formatCurrency(row.revenue)}</td>
-                  <td className="p-3">{row.orderStatus || "N/A"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {loading && <p className="p-4 text-sm text-slate-500 dark:text-slate-300">Loading sales records...</p>}
-        {!loading && rows.length === 0 && (
-          <p className="p-4 text-sm text-slate-500 dark:text-slate-300">
-            No sales records found for the selected filters.
-          </p>
-        )}
-      </div>
-
-      <div className="mt-4 flex items-center justify-between text-sm">
-        <p className="text-slate-500 dark:text-slate-300">
-          Page {pagination.page} of {pagination.totalPages} | {pagination.total} records
+      {!isHydrated && (
+        <p className="mb-4 text-sm text-slate-500 dark:text-slate-300">
+          Loading saved filters...
         </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            disabled={pagination.page <= 1}
-            onClick={() =>
-              setPagination((prev) => ({ ...prev, page: Math.max(1, prev.page - 1) }))
-            }
-            className="px-3 py-1 rounded border border-[var(--border-soft)] disabled:opacity-50"
-          >
-            Previous
-          </button>
-          <button
-            type="button"
-            disabled={pagination.page >= pagination.totalPages}
-            onClick={() =>
-              setPagination((prev) => ({
-                ...prev,
-                page: Math.min(prev.totalPages, prev.page + 1),
-              }))
-            }
-            className="px-3 py-1 rounded border border-[var(--border-soft)] disabled:opacity-50"
-          >
-            Next
-          </button>
-        </div>
-      </div>
+      )}
+
+      {isHydrated && (
+        <>
+          {error && <p className="mb-4 text-sm text-rose-600">{error}</p>}
+
+          <div className="surface-card rounded-2xl border border-[var(--border-soft)] overflow-hidden">
+            <div className="overflow-x-auto overflow-y-auto max-h-[70vh]">
+              <table className="w-full border-collapse text-sm">
+                <thead className="table-head">
+                  <tr>
+                    <th className="p-3 text-left">Timestamp</th>
+                    <th className="p-3 text-left">Transaction</th>
+                    <th className="p-3 text-left">Region</th>
+                    <th className="p-3 text-left">Country</th>
+                    <th className="p-3 text-left">Category</th>
+                    <th className="p-3 text-left">Subcategory</th>
+                    <th className="p-3 text-left">Device</th>
+                    <th className="p-3 text-right">Quantity</th>
+                    <th className="p-3 text-right">Revenue</th>
+                    <th className="p-3 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row._id} className="table-row table-row-hover">
+                      <td className="p-3">
+                        {row.timestamp ? new Date(row.timestamp).toLocaleString() : "N/A"}
+                      </td>
+                      <td className="p-3">{row.transactionId || "N/A"}</td>
+                      <td className="p-3">{row.region || "N/A"}</td>
+                      <td className="p-3">{row.country || "N/A"}</td>
+                      <td className="p-3">{row.category || "N/A"}</td>
+                      <td className="p-3">{row.subcategory || "N/A"}</td>
+                      <td className="p-3">{row.device || "N/A"}</td>
+                      <td className="p-3 text-right">{row.quantity ?? 0}</td>
+                      <td className="p-3 text-right">{formatCurrency(row.revenue)}</td>
+                      <td className="p-3">{row.orderStatus || "N/A"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {loading && (
+              <p className="p-4 text-sm text-slate-500 dark:text-slate-300">
+                Loading sales records...
+              </p>
+            )}
+            {!loading && rows.length === 0 && (
+              <p className="p-4 text-sm text-slate-500 dark:text-slate-300">
+                No sales records found for the selected filters.
+              </p>
+            )}
+          </div>
+
+          <div className="mt-4 flex items-center justify-between text-sm">
+            <p className="text-slate-500 dark:text-slate-300">
+              Page {pagination.page} of {pagination.totalPages} | {pagination.total} records
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={pagination.page <= 1}
+                onClick={() =>
+                  setPagination((prev) => ({ ...prev, page: Math.max(1, prev.page - 1) }))
+                }
+                className="px-3 py-1 rounded border border-[var(--border-soft)] disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={pagination.page >= pagination.totalPages}
+                onClick={() =>
+                  setPagination((prev) => ({
+                    ...prev,
+                    page: Math.min(prev.totalPages, prev.page + 1),
+                  }))
+                }
+                className="px-3 py-1 rounded border border-[var(--border-soft)] disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

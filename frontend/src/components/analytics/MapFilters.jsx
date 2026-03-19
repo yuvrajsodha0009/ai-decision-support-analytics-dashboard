@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, Filter } from "lucide-react";
-import { GEO_DATE_PRESET_OPTIONS } from "../../utils/geoDateRange";
+import { ANALYTICS_DATE_PRESET_OPTIONS } from "../../utils/analyticsDateRange";
 import { GEO_METRIC_OPTIONS } from "../../utils/geoAnalyticsConstants";
 import AdvancedFiltersPanel from "./AdvancedFiltersPanel";
 
@@ -18,6 +18,7 @@ const MapFilters = ({
   onDatePresetChange,
   onApplyCustomRange,
 }) => {
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [customStartDate, setCustomStartDate] = useState(filters.customStartDate || "");
   const [customEndDate, setCustomEndDate] = useState(filters.customEndDate || "");
@@ -37,7 +38,8 @@ const MapFilters = ({
     onDatePresetChange(nextPreset);
   };
 
-  const ToggleIcon = isAdvancedOpen ? ChevronUp : ChevronDown;
+  const CollapseIcon = isCollapsed ? ChevronDown : ChevronUp;
+  const AdvancedIcon = isAdvancedOpen ? ChevronUp : ChevronDown;
 
   return (
     <section className="rounded-2xl border border-white/10 bg-slate-900/55 p-4 backdrop-blur-md sm:p-5">
@@ -48,12 +50,17 @@ const MapFilters = ({
           </span>
           Global Filters
         </div>
-        <span className="text-[11px] text-slate-400">
-          {loading ? "Refreshing options..." : "Narrative analytics view"}
-        </span>
+        <button
+          type="button"
+          onClick={() => setIsCollapsed((previous) => !previous)}
+          className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-slate-900/70 px-3 text-xs text-slate-100 transition-colors hover:border-cyan-400/55 hover:text-cyan-100"
+        >
+          <CollapseIcon size={14} />
+          {isCollapsed ? "Expand Filters" : "Collapse Filters"}
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="flex flex-col gap-1">
           <span className={labelClassName}>Date Range</span>
           <select
@@ -61,56 +68,13 @@ const MapFilters = ({
             onChange={handleDatePresetSelect}
             className={selectClassName}
           >
-            {GEO_DATE_PRESET_OPTIONS.map((option) => (
+            {ANALYTICS_DATE_PRESET_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
           </select>
         </label>
-
-        <label className="flex flex-col gap-1">
-          <span className={labelClassName}>Metric</span>
-          <select
-            value={filters.metric}
-            onChange={(event) => onFilterChange("metric", event.target.value)}
-            className={selectClassName}
-          >
-            {GEO_METRIC_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className={labelClassName}>Region</span>
-          <select
-            value={filters.region}
-            onChange={(event) => onFilterChange("region", event.target.value)}
-            className={selectClassName}
-          >
-            <option value="">All Regions</option>
-            {regions.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="flex flex-col gap-1">
-          <span className={labelClassName}>More Controls</span>
-          <button
-            type="button"
-            onClick={() => setIsAdvancedOpen((previous) => !previous)}
-            className="inline-flex h-9 items-center justify-between rounded-lg border border-white/10 bg-slate-900/70 px-3 text-xs text-slate-100 transition-colors hover:border-cyan-400/55 hover:text-cyan-100"
-          >
-            <span>Advanced Filters</span>
-            <ToggleIcon size={14} />
-          </button>
-        </div>
       </div>
 
       {filters.dateRange === "custom" && (
@@ -146,13 +110,66 @@ const MapFilters = ({
         </div>
       )}
 
-      <AdvancedFiltersPanel
-        isOpen={isAdvancedOpen}
-        filters={filters}
-        options={options}
-        loading={loading}
-        onFilterChange={onFilterChange}
-      />
+      {!isCollapsed && (
+        <>
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <label className="flex flex-col gap-1">
+              <span className={labelClassName}>Metric</span>
+              <select
+                value={filters.metric}
+                onChange={(event) => onFilterChange("metric", event.target.value)}
+                className={selectClassName}
+              >
+                {GEO_METRIC_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className={labelClassName}>Region</span>
+              <select
+                value={filters.region}
+                onChange={(event) => onFilterChange("region", event.target.value)}
+                className={selectClassName}
+              >
+                <option value="">All Regions</option>
+                {regions.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="flex flex-col gap-1">
+              <span className={labelClassName}>More Controls</span>
+              <button
+                type="button"
+                onClick={() => setIsAdvancedOpen((previous) => !previous)}
+                className="inline-flex h-9 items-center justify-between rounded-lg border border-white/10 bg-slate-900/70 px-3 text-xs text-slate-100 transition-colors hover:border-cyan-400/55 hover:text-cyan-100"
+              >
+                <span>Advanced Filters</span>
+                <AdvancedIcon size={14} />
+              </button>
+            </div>
+          </div>
+
+          <AdvancedFiltersPanel
+            isOpen={isAdvancedOpen}
+            filters={filters}
+            options={options}
+            loading={loading}
+            onFilterChange={onFilterChange}
+          />
+        </>
+      )}
+
+      <div className="mt-3 text-[11px] text-slate-400">
+        {loading ? "Refreshing options..." : "Narrative analytics view"}
+      </div>
     </section>
   );
 };

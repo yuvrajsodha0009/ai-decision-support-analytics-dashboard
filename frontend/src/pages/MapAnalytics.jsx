@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import MapFilters from "../components/analytics/MapFilters";
+import { useAnalyticsFilters } from "../context/AnalyticsFiltersContext";
 import RegionKPICards from "../components/analytics/RegionKPICards";
 import GeoHeatMapPanel from "../components/analytics/GeoHeatMapPanel";
 import TopRegionsTable from "../components/analytics/TopRegionsTable";
@@ -33,6 +34,7 @@ const LazyChartFallback = () => (
 
 const MapAnalytics = () => {
   const navigate = useNavigate();
+  const { isHydrated } = useAnalyticsFilters();
   const {
     mapFilters,
     setGeoFilter,
@@ -53,7 +55,7 @@ const MapAnalytics = () => {
     regionBarQuery,
     categoryHeatmapQuery,
     insightsQuery,
-  } = useGeoAnalyticsQueries(mapFilters);
+  } = useGeoAnalyticsQueries(mapFilters, isHydrated);
 
   const handleDatePresetChange = useCallback(
     (preset) => {
@@ -239,6 +241,9 @@ const MapAnalytics = () => {
         </div>
 
         <div className="space-y-6">
+          {!isHydrated && (
+            <p className="text-sm text-[#9aa0a6]">Loading saved filters...</p>
+          )}
           <MapFilters
             filters={mapFilters}
             options={options}
@@ -247,119 +252,122 @@ const MapAnalytics = () => {
             onDatePresetChange={handleDatePresetChange}
             onApplyCustomRange={handleCustomDateRange}
           />
-
-          <AnalyticsSectionCard
-            title="Overview"
-            subtitle="Executive snapshot of current map analytics performance"
-            icon={BarChart3}
-          >
-            <RegionKPICards
-              summary={summaryData}
-              loading={summaryQuery.isLoading || summaryQuery.isFetching}
-              error={getErrorMessage(summaryQuery.error)}
-            />
-          </AnalyticsSectionCard>
-
-          <InsightBanner
-            insights={insightsRows}
-            loading={insightsQuery.isLoading || insightsQuery.isFetching}
-            error={getErrorMessage(insightsQuery.error)}
-          />
-
-          <AnalyticsSectionCard
-            title="Geographic Performance"
-            subtitle="Regional distribution and drill-down exploration"
-            badge={topRegionBadge}
-            icon={Globe2}
-          >
-            <div className="grid gap-4 xl:grid-cols-3">
-              <div className="xl:col-span-2">
-                <div className="space-y-3">
-                  <GeoBreadcrumb
-                    items={breadcrumbs}
-                    activeLevel={mapFilters.level}
-                    onNavigate={handleBreadcrumbClick}
-                  />
-                  <GeoHeatMapPanel
-                    level={mapFilters.level}
-                    mapLevel={mapLevel}
-                    country={mapFilters.country}
-                    metric={mapFilters.metric}
-                    rows={mapRows}
-                    loading={mapQuery.isLoading || mapQuery.isFetching}
-                    error={getErrorMessage(mapQuery.error)}
-                    onDrillDown={handleDrillDown}
-                  />
-                </div>
-              </div>
-
-              <div className="xl:col-span-1">
-                <TopRegionsTable
-                  rows={topRegionsRows}
-                  level={mapFilters.level}
-                  loading={topRegionsQuery.isLoading || topRegionsQuery.isFetching}
-                  error={getErrorMessage(topRegionsQuery.error)}
-                  onDrillDown={handleDrillDown}
+          {isHydrated && (
+            <>
+              <AnalyticsSectionCard
+                title="Overview"
+                subtitle="Executive snapshot of current map analytics performance"
+                icon={BarChart3}
+              >
+                <RegionKPICards
+                  summary={summaryData}
+                  loading={summaryQuery.isLoading || summaryQuery.isFetching}
+                  error={getErrorMessage(summaryQuery.error)}
                 />
-              </div>
-            </div>
-          </AnalyticsSectionCard>
+              </AnalyticsSectionCard>
 
-          <AnalyticsSectionCard
-            title="Trend Analysis"
-            subtitle="Revenue movement over the selected timeline"
-            icon={LineChartIcon}
-          >
-            <Suspense fallback={<LazyChartFallback />}>
-              <RevenueTrendChart
-                data={trendRows}
-                previousData={previousTrendRows}
-                loading={trendLoading}
-                error={trendError}
+              <InsightBanner
+                insights={insightsRows}
+                loading={insightsQuery.isLoading || insightsQuery.isFetching}
+                error={getErrorMessage(insightsQuery.error)}
               />
-            </Suspense>
-          </AnalyticsSectionCard>
 
-          <AnalyticsSectionCard
-            title="Performance Drivers"
-            subtitle="Compare key country contribution and category intensity"
-            icon={Zap}
-          >
-            <div className="grid gap-4 xl:grid-cols-12">
-              <div className="xl:col-span-5">
+              <AnalyticsSectionCard
+                title="Geographic Performance"
+                subtitle="Regional distribution and drill-down exploration"
+                badge={topRegionBadge}
+                icon={Globe2}
+              >
+                <div className="grid gap-4 xl:grid-cols-3">
+                  <div className="xl:col-span-2">
+                    <div className="space-y-3">
+                      <GeoBreadcrumb
+                        items={breadcrumbs}
+                        activeLevel={mapFilters.level}
+                        onNavigate={handleBreadcrumbClick}
+                      />
+                      <GeoHeatMapPanel
+                        level={mapFilters.level}
+                        mapLevel={mapLevel}
+                        country={mapFilters.country}
+                        metric={mapFilters.metric}
+                        rows={mapRows}
+                        loading={mapQuery.isLoading || mapQuery.isFetching}
+                        error={getErrorMessage(mapQuery.error)}
+                        onDrillDown={handleDrillDown}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="xl:col-span-1">
+                    <TopRegionsTable
+                      rows={topRegionsRows}
+                      level={mapFilters.level}
+                      loading={topRegionsQuery.isLoading || topRegionsQuery.isFetching}
+                      error={getErrorMessage(topRegionsQuery.error)}
+                      onDrillDown={handleDrillDown}
+                    />
+                  </div>
+                </div>
+              </AnalyticsSectionCard>
+
+              <AnalyticsSectionCard
+                title="Trend Analysis"
+                subtitle="Revenue movement over the selected timeline"
+                icon={LineChartIcon}
+              >
                 <Suspense fallback={<LazyChartFallback />}>
-                  <RegionBarChart
-                    data={regionBarRows}
-                    metric={mapFilters.metric}
-                    loading={regionBarQuery.isLoading || regionBarQuery.isFetching}
-                    error={getErrorMessage(regionBarQuery.error)}
+                  <RevenueTrendChart
+                    data={trendRows}
+                    previousData={previousTrendRows}
+                    loading={trendLoading}
+                    error={trendError}
                   />
                 </Suspense>
-              </div>
+              </AnalyticsSectionCard>
 
-              <div className="xl:col-span-7">
-                <Suspense fallback={<LazyChartFallback />}>
-                  <CategoryHeatmap
-                    data={categoryHeatmapQuery.data}
-                    loading={categoryHeatmapQuery.isLoading || categoryHeatmapQuery.isFetching}
-                    error={getErrorMessage(categoryHeatmapQuery.error)}
-                  />
-                </Suspense>
-              </div>
-            </div>
-          </AnalyticsSectionCard>
+              <AnalyticsSectionCard
+                title="Performance Drivers"
+                subtitle="Compare key country contribution and category intensity"
+                icon={Zap}
+              >
+                <div className="grid gap-4 xl:grid-cols-12">
+                  <div className="xl:col-span-5">
+                    <Suspense fallback={<LazyChartFallback />}>
+                      <RegionBarChart
+                        data={regionBarRows}
+                        metric={mapFilters.metric}
+                        loading={regionBarQuery.isLoading || regionBarQuery.isFetching}
+                        error={getErrorMessage(regionBarQuery.error)}
+                      />
+                    </Suspense>
+                  </div>
 
-          <AnalyticsSectionCard
-            title="Key Insights"
-            subtitle="AI-assisted highlights for growth, risk, and opportunity"
-            icon={Lightbulb}
-          >
-            <InsightCards
-              insights={insightsRows}
-              loading={insightsQuery.isLoading || insightsQuery.isFetching}
-              error={getErrorMessage(insightsQuery.error)}
-            />
-          </AnalyticsSectionCard>
+                  <div className="xl:col-span-7">
+                    <Suspense fallback={<LazyChartFallback />}>
+                      <CategoryHeatmap
+                        data={categoryHeatmapQuery.data}
+                        loading={categoryHeatmapQuery.isLoading || categoryHeatmapQuery.isFetching}
+                        error={getErrorMessage(categoryHeatmapQuery.error)}
+                      />
+                    </Suspense>
+                  </div>
+                </div>
+              </AnalyticsSectionCard>
+
+              <AnalyticsSectionCard
+                title="Key Insights"
+                subtitle="AI-assisted highlights for growth, risk, and opportunity"
+                icon={Lightbulb}
+              >
+                <InsightCards
+                  insights={insightsRows}
+                  loading={insightsQuery.isLoading || insightsQuery.isFetching}
+                  error={getErrorMessage(insightsQuery.error)}
+                />
+              </AnalyticsSectionCard>
+            </>
+          )}
         </div>
       </div>
     </div>

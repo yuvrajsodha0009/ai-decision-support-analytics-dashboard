@@ -1,5 +1,38 @@
 const mongoose = require("mongoose");
 
+const analyticsDateRangeSchema = new mongoose.Schema(
+  {
+    preset: {
+      type: String,
+      enum: ["today", "last7", "last30", "last90", "custom"],
+      default: "last7",
+    },
+    start: {
+      type: Date,
+      default: null,
+    },
+    end: {
+      type: Date,
+      default: null,
+    },
+  },
+  { _id: false }
+);
+
+const userPreferencesSchema = new mongoose.Schema(
+  {
+    analyticsDateRange: {
+      type: analyticsDateRangeSchema,
+      default: () => ({
+        preset: "last7",
+        start: null,
+        end: null,
+      }),
+    },
+  },
+  { _id: false }
+);
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -48,6 +81,16 @@ const userSchema = new mongoose.Schema(
     avatar: {
       type: String,
       default: ""
+    },
+    preferences: {
+      type: userPreferencesSchema,
+      default: () => ({
+        analyticsDateRange: {
+          preset: "last7",
+          start: null,
+          end: null,
+        },
+      }),
     }
   },
   { timestamps: true }

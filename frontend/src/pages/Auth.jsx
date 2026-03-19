@@ -99,6 +99,7 @@ const Auth = () => {
       localStorage.setItem("role", userRole);
       localStorage.setItem("userName", userName);
       localStorage.setItem("userEmail", userEmail);
+      window.dispatchEvent(new Event("auth-changed"));
 
       navigate("/dashboard");
     } catch (err) {

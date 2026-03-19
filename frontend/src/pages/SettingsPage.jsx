@@ -4,7 +4,9 @@ import { toast } from "react-hot-toast";
 import { Bell, Lock, Sliders, User } from "lucide-react";
 import SettingsTabs from "../components/settings/SettingsTabs";
 import ToggleSwitch from "../components/settings/ToggleSwitch";
+import { useAnalyticsFilters } from "../context/AnalyticsFiltersContext";
 import { usePreferences } from "../context/PreferencesContext";
+import { formatAnalyticsDateRangeSummary } from "../utils/analyticsDateRange";
 
 const getInitialNotifications = () => {
   const defaults = {
@@ -20,7 +22,7 @@ const getInitialNotifications = () => {
     }
     const parsed = JSON.parse(raw);
     return { ...defaults, ...parsed };
-  } catch (error) {
+  } catch {
     return defaults;
   }
 };
@@ -106,6 +108,8 @@ const SettingsPage = () => {
   const [changingPassword, setChangingPassword] = useState(false);
 
   const { preferences, updatePreferences } = usePreferences();
+  const { savedDateRange, saveDateRangePreference, isSavingDatePreference } =
+    useAnalyticsFilters();
   const [notifications, setNotifications] = useState(getInitialNotifications);
 
   useEffect(() => {
@@ -605,26 +609,37 @@ const SettingsPage = () => {
                 >
                   <div className="flex flex-wrap gap-3">
                     {[
-                      { label: "7d", value: "7d" },
-                      { label: "30d", value: "30d" },
-                      { label: "90d", value: "90d" },
+                      { label: "Today", value: "today" },
+                      { label: "7d", value: "last7" },
+                      { label: "30d", value: "last30" },
+                      { label: "90d", value: "last90" },
                     ].map((option) => (
                       <button
                         key={option.value}
                         type="button"
-                        onClick={() =>
-                          updatePreferences({ dateRange: option.value })
-                        }
+                        onClick={() => saveDateRangePreference({ preset: option.value })}
                         className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
-                          preferences.dateRange === option.value
+                          savedDateRange.preset === option.value
                             ? "border-cyan-300 bg-cyan-50 text-cyan-700 shadow-sm dark:border-cyan-400/60 dark:bg-cyan-400/10 dark:text-cyan-100"
                             : "border-slate-200 text-slate-600 hover:border-cyan-300 hover:text-slate-900 dark:border-white/10 dark:text-slate-400 dark:hover:border-cyan-400/40 dark:hover:text-slate-100"
                         }`}
+                        disabled={isSavingDatePreference}
                       >
                         {option.label}
                       </button>
                     ))}
                   </div>
+                  {savedDateRange.preset === "custom" && (
+                    <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm text-slate-200">
+                      <p className="font-semibold text-cyan-100">Custom</p>
+                      <p className="mt-1 text-xs text-slate-300">
+                        {formatAnalyticsDateRangeSummary(
+                          savedDateRange.start,
+                          savedDateRange.end
+                        )}
+                      </p>
+                    </div>
+                  )}
                 </SettingsCard>
 
                 <SettingsCard

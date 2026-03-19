@@ -7,6 +7,7 @@ const {
   updateProfile,
   changePassword,
   updateAvatar,
+  updateAnalyticsDateRangePreference,
 } = require("../controllers/userController");
 const auth = require("../middleware/authMiddleware");
 
@@ -41,6 +42,7 @@ const upload = multer({
 router.get("/me", auth, getMe);
 router.put("/update-profile", auth, updateProfile);
 router.put("/change-password", auth, changePassword);
+router.put("/preferences/date-range", auth, updateAnalyticsDateRangePreference);
 router.put(
   "/update-avatar",
   auth,

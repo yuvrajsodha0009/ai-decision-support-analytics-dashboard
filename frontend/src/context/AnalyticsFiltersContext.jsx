@@ -1,44 +1,225 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  normalizeAnalyticsDateRange,
+  resolveStoredAnalyticsDateRange,
+} from "../utils/analyticsDateRange";
+import {
+  fetchCurrentUser,
+  updateAnalyticsDateRangePreference as persistAnalyticsDateRangePreference,
+} from "../Services/userApi";
 
 const AnalyticsFiltersContext = createContext(null);
 
-const getDefaultDateRange = () => {
-  const end = new Date();
-  const start = new Date(end);
-  start.setUTCDate(start.getUTCDate() - 30);
-  return {
-    start: start.toISOString(),
-    end: end.toISOString(),
-  };
-};
+const getDefaultTimezone = () =>
+  Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
-const createDefaultFilters = () => {
-  const range = getDefaultDateRange();
-  return {
-    ...range,
-    region: "",
-    country: "",
-    state: "",
-    city: "",
-    category: "",
-    product: "",
-    segment: "",
-    customerType: "",
-    channel: "",
-    subcategory: "",
-    device: "",
-    mapMetric: "revenue",
-    mapLevel: "world",
-    mapDateRange: "last30",
-    groupBy: "day",
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-    compareMode: false,
+const createDefaultFilters = (dateRange) => ({
+  start: dateRange.start,
+  end: dateRange.end,
+  region: "",
+  country: "",
+  state: "",
+  city: "",
+  category: "",
+  product: "",
+  segment: "",
+  customerType: "",
+  channel: "",
+  subcategory: "",
+  device: "",
+  mapMetric: "revenue",
+  mapLevel: "world",
+  mapDateRange: dateRange.preset,
+  groupBy: "day",
+  timezone: getDefaultTimezone(),
+  compareMode: false,
+});
+
+const mergeFilterPatch = (previous, patch = {}) => {
+  if (!patch || typeof patch !== "object") return previous;
+
+  const next = {
+    ...previous,
+    ...patch,
   };
+
+  const hasStart = Object.prototype.hasOwnProperty.call(patch, "start");
+  const hasEnd = Object.prototype.hasOwnProperty.call(patch, "end");
+
+  if (hasStart || hasEnd) {
+    const normalizedDateRange = normalizeAnalyticsDateRange({
+      preset: patch.mapDateRange || previous.mapDateRange,
+      start: hasStart ? patch.start : previous.start,
+      end: hasEnd ? patch.end : previous.end,
+    });
+
+    next.start = normalizedDateRange.start;
+    next.end = normalizedDateRange.end;
+    next.mapDateRange = normalizedDateRange.preset;
+  } else if (Object.prototype.hasOwnProperty.call(patch, "mapDateRange")) {
+    next.mapDateRange = patch.mapDateRange;
+  }
+
+  return next;
 };
 
 export const AnalyticsFiltersProvider = ({ children }) => {
-  const [filters, setFilters] = useState(createDefaultFilters);
+  const initialDateRange = useMemo(() => resolveStoredAnalyticsDateRange(), []);
+  const [savedDateRange, setSavedDateRange] = useState(initialDateRange);
+  const [filters, setFiltersState] = useState(() =>
+    createDefaultFilters(initialDateRange)
+  );
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [isSavingDatePreference, setIsSavingDatePreference] = useState(false);
+
+  const rehydrateAnalyticsFilters = useCallback(async () => {
+    const fallbackDateRange = resolveStoredAnalyticsDateRange();
+    const token = localStorage.getItem("token");
+
+    setIsHydrated(false);
+
+    if (!token) {
+      setSavedDateRange(fallbackDateRange);
+      setFiltersState(createDefaultFilters(fallbackDateRange));
+      setIsHydrated(true);
+      return fallbackDateRange;
+    }
+
+    try {
+      const response = await fetchCurrentUser();
+      const hydratedDateRange = resolveStoredAnalyticsDateRange(
+        response?.user?.preferences?.analyticsDateRange
+      );
+
+      setSavedDateRange(hydratedDateRange);
+      setFiltersState(createDefaultFilters(hydratedDateRange));
+      return hydratedDateRange;
+    } catch {
+      setSavedDateRange(fallbackDateRange);
+      setFiltersState(createDefaultFilters(fallbackDateRange));
+      return fallbackDateRange;
+    } finally {
+      setIsHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    rehydrateAnalyticsFilters();
+  }, [rehydrateAnalyticsFilters]);
+
+  useEffect(() => {
+    const handleAuthChange = () => {
+      rehydrateAnalyticsFilters();
+    };
+
+    const handleStorage = (event) => {
+      if (event.key === "token") {
+        rehydrateAnalyticsFilters();
+      }
+    };
+
+    window.addEventListener("auth-changed", handleAuthChange);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("auth-changed", handleAuthChange);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [rehydrateAnalyticsFilters]);
+
+  const saveDateRangePreference = useCallback(
+    async (input, options = {}) => {
+      const normalizedDateRange = normalizeAnalyticsDateRange(input);
+      const shouldSyncFilters = options.syncFilters !== false;
+
+      setSavedDateRange(normalizedDateRange);
+
+      if (shouldSyncFilters) {
+        setFiltersState((previous) =>
+          mergeFilterPatch(previous, {
+            start: normalizedDateRange.start,
+            end: normalizedDateRange.end,
+            mapDateRange: normalizedDateRange.preset,
+          })
+        );
+      }
+
+      const token = localStorage.getItem("token");
+      if (!token) {
+        return normalizedDateRange;
+      }
+
+      setIsSavingDatePreference(true);
+      try {
+        const response = await persistAnalyticsDateRangePreference(normalizedDateRange);
+        const persistedDateRange = resolveStoredAnalyticsDateRange(
+          response?.analyticsDateRange || response?.user?.preferences?.analyticsDateRange
+        );
+
+        setSavedDateRange(persistedDateRange);
+
+        if (shouldSyncFilters) {
+          setFiltersState((previous) =>
+            mergeFilterPatch(previous, {
+              start: persistedDateRange.start,
+              end: persistedDateRange.end,
+              mapDateRange: persistedDateRange.preset,
+            })
+          );
+        }
+
+        return persistedDateRange;
+      } catch {
+        return normalizedDateRange;
+      } finally {
+        setIsSavingDatePreference(false);
+      }
+    },
+    []
+  );
+
+  const applyFilterPatch = useCallback(
+    async (patch = {}, options = {}) => {
+      const shouldPersistDateRange = Boolean(options.persistDateRange);
+      const hasDatePatch =
+        Object.prototype.hasOwnProperty.call(patch, "start") ||
+        Object.prototype.hasOwnProperty.call(patch, "end");
+
+      const nextDateRange =
+        shouldPersistDateRange || hasDatePatch
+          ? normalizeAnalyticsDateRange({
+              preset: options.datePreset || patch.mapDateRange || filters.mapDateRange,
+              start: patch.start ?? filters.start,
+              end: patch.end ?? filters.end,
+            })
+          : null;
+
+      const nextPatch = nextDateRange
+        ? {
+            ...patch,
+            start: nextDateRange.start,
+            end: nextDateRange.end,
+            mapDateRange: nextDateRange.preset,
+          }
+        : patch;
+
+      setFiltersState((previous) => mergeFilterPatch(previous, nextPatch));
+
+      if (shouldPersistDateRange && nextDateRange) {
+        await saveDateRangePreference(nextDateRange, { syncFilters: false });
+      }
+
+      return nextDateRange;
+    },
+    [filters.end, filters.mapDateRange, filters.start, saveDateRangePreference]
+  );
 
   const previousRange = useMemo(() => {
     const currentStart = new Date(filters.start);
@@ -57,19 +238,28 @@ export const AnalyticsFiltersProvider = ({ children }) => {
     () => ({
       filters,
       previousRange,
+      savedDateRange,
+      isHydrated,
+      isSavingDatePreference,
       setFilter: (key, value) =>
-        setFilters((prev) => ({
-          ...prev,
-          [key]: value,
-        })),
+        setFiltersState((previous) => mergeFilterPatch(previous, { [key]: value })),
       setFilters: (patch) =>
-        setFilters((prev) => ({
-          ...prev,
-          ...patch,
-        })),
-      resetFilters: () => setFilters(createDefaultFilters()),
+        setFiltersState((previous) => mergeFilterPatch(previous, patch)),
+      applyFilterPatch,
+      saveDateRangePreference,
+      rehydrateAnalyticsFilters,
+      resetFilters: () => setFiltersState(createDefaultFilters(savedDateRange)),
     }),
-    [filters, previousRange]
+    [
+      applyFilterPatch,
+      filters,
+      isHydrated,
+      isSavingDatePreference,
+      previousRange,
+      rehydrateAnalyticsFilters,
+      saveDateRangePreference,
+      savedDateRange,
+    ]
   );
 
   return (

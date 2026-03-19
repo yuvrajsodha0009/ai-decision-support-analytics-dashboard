@@ -8,6 +8,9 @@ import {
   fetchAnalyticsSeries,
   fetchAnalyticsSummary,
 } from "../Services/analyticsApi";
+import AIInsightCard from "./ai/AIInsightCard";
+import AskAIDrawer from "./ai/AskAIDrawer";
+import FloatingAIButton from "./ai/FloatingAIButton";
 import GlobalFilterBar from "./dashboard/GlobalFilterBar";
 import KpiCards from "./dashboard/KpiCards";
 import RevenueTrendChart from "./dashboard/RevenueTrendChart";
@@ -36,6 +39,64 @@ const defaultInsights = {
   warningDescription: "No warning detected for the selected range.",
 };
 
+const TREND_METRIC_META = {
+  revenue: {
+    label: "Revenue",
+    accessor: (row) => row.currentRevenue ?? 0,
+  },
+  orders: {
+    label: "Orders",
+    accessor: (row) => row.currentOrders ?? 0,
+  },
+  aov: {
+    label: "AOV",
+    accessor: (row) => row.currentAov ?? 0,
+  },
+};
+
+const formatFilterLabel = (value, fallback) => {
+  const normalized = String(value || "").trim();
+  if (!normalized) return fallback;
+
+  return normalized
+    .split(/[\s_-]+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+};
+
+const CONTEXT_LABELS = {
+  revenue_chart: "Revenue chart",
+  orders_chart: "Orders chart",
+  category_chart: "Category chart",
+};
+
+const pickContextFromViewport = (sections) => {
+  if (typeof window === "undefined") return "revenue_chart";
+
+  const viewportFocusLine = window.innerHeight * 0.42;
+  let closestContext = "revenue_chart";
+  let closestDistance = Number.POSITIVE_INFINITY;
+
+  sections.forEach(({ key, element }) => {
+    if (!element) return;
+
+    const rect = element.getBoundingClientRect();
+    const sectionCenter = rect.top + rect.height / 2;
+    let distance = Math.abs(sectionCenter - viewportFocusLine);
+
+    if (rect.top <= viewportFocusLine && rect.bottom >= viewportFocusLine) {
+      distance *= 0.2;
+    }
+
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestContext = key;
+    }
+  });
+
+  return closestContext;
+};
+
 const calculateGrowth = (current, previous) => {
   if (!previous) return current ? 100 : 0;
   return ((current - previous) / previous) * 100;
@@ -59,11 +120,15 @@ const safeDivide = (numerator, denominator) => {
   return a / b;
 };
 
-const buildInsights = (currentCategoryRows, previousCategoryRows, compareMode) => {
+const buildInsights = (
+  currentCategoryRows,
+  previousCategoryRows,
+  compareMode,
+) => {
   if (!currentCategoryRows.length) return defaultInsights;
 
   const sortedByRevenue = [...currentCategoryRows].sort(
-    (a, b) => (b.totalRevenue || 0) - (a.totalRevenue || 0)
+    (a, b) => (b.totalRevenue || 0) - (a.totalRevenue || 0),
   );
   const topCategory = sortedByRevenue[0];
 
@@ -73,18 +138,19 @@ const buildInsights = (currentCategoryRows, previousCategoryRows, compareMode) =
       bestCategory: topCategory.category,
       bestCategoryRevenue: topCategory.totalRevenue || 0,
       growthDescription: `${topCategory.category} currently leads revenue with ${formatNumber(
-        topCategory.totalRevenue || 0
+        topCategory.totalRevenue || 0,
       )}.`,
       riskDescription:
         "Enable Compare with Previous Period to evaluate growth-based risk signals.",
       recommendation:
         "Use compare mode to unlock growth-aware recommendations and warnings.",
-      warningDescription: "No warning generated while comparison mode is disabled.",
+      warningDescription:
+        "No warning generated while comparison mode is disabled.",
     };
   }
 
   const previousMap = new Map(
-    previousCategoryRows.map((row) => [row.category, row.totalRevenue || 0])
+    previousCategoryRows.map((row) => [row.category, row.totalRevenue || 0]),
   );
 
   const rankedByRevenue = sortedByRevenue.map((row, index) => {
@@ -97,9 +163,12 @@ const buildInsights = (currentCategoryRows, previousCategoryRows, compareMode) =
   });
 
   const marketLeader = rankedByRevenue[0];
-  const lowRevenueStartIndex = Math.max(1, Math.floor(rankedByRevenue.length / 2));
+  const lowRevenueStartIndex = Math.max(
+    1,
+    Math.floor(rankedByRevenue.length / 2),
+  );
   const lowRevenueRows = rankedByRevenue.filter(
-    (_, index) => index >= lowRevenueStartIndex
+    (_, index) => index >= lowRevenueStartIndex,
   );
 
   const riskCandidate =
@@ -115,19 +184,20 @@ const buildInsights = (currentCategoryRows, previousCategoryRows, compareMode) =
   const growthDescription =
     marketLeader.growth >= 0
       ? `${marketLeader.category} leads revenue and is still growing (${marketLeader.growth.toFixed(
-          2
+          2,
         )}%).`
       : `Market leader slowing: ${marketLeader.category} still leads revenue but growth is ${marketLeader.growth.toFixed(
-          2
+          2,
         )}%.`;
 
   const riskDescription = riskCandidate
     ? `${riskCandidate.category} has low revenue and declining growth (${riskCandidate.growth.toFixed(
-        2
+        2,
       )}%).`
     : "No low-revenue category is showing negative growth in this comparison window.";
 
-  let recommendation = "Maintain current allocation and continue monitoring trend shifts.";
+  let recommendation =
+    "Maintain current allocation and continue monitoring trend shifts.";
   if (riskCandidate) {
     recommendation = `Stabilize ${riskCandidate.category} with targeted campaigns while defending ${marketLeader.category}.`;
   } else if (emergingCandidate) {
@@ -141,7 +211,7 @@ const buildInsights = (currentCategoryRows, previousCategoryRows, compareMode) =
       ? `Warning: top revenue category ${marketLeader.category} is now contracting.`
       : riskCandidate && riskCandidate.growth < -10
         ? `Warning: ${riskCandidate.category} shows steep decline (${riskCandidate.growth.toFixed(
-            2
+            2,
           )}%).`
         : "No severe warning threshold breached in this cycle.";
 
@@ -150,7 +220,9 @@ const buildInsights = (currentCategoryRows, previousCategoryRows, compareMode) =
     bestCategory: marketLeader.category,
     bestCategoryRevenue: marketLeader.totalRevenue || 0,
     needsAttentionCategory: riskCandidate?.category || null,
-    needsAttentionGrowth: riskCandidate ? Number(riskCandidate.growth.toFixed(2)) : null,
+    needsAttentionGrowth: riskCandidate
+      ? Number(riskCandidate.growth.toFixed(2))
+      : null,
     growthDescription,
     riskDescription,
     recommendation,
@@ -159,8 +231,11 @@ const buildInsights = (currentCategoryRows, previousCategoryRows, compareMode) =
 };
 
 const Dashboard = () => {
-  const { filters, previousRange } = useAnalyticsFilters();
+  const { filters, previousRange, isHydrated } = useAnalyticsFilters();
   const requestRef = useRef(0);
+  const kpiSectionRef = useRef(null);
+  const revenueSectionRef = useRef(null);
+  const categorySectionRef = useRef(null);
 
   const [summary, setSummary] = useState(null);
   const [series, setSeries] = useState([]);
@@ -170,6 +245,10 @@ const Dashboard = () => {
   const [deviceRows, setDeviceRows] = useState([]);
   const [insights, setInsights] = useState(defaultInsights);
   const [filterOptions, setFilterOptions] = useState(emptyOptions);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [drawerContextKey, setDrawerContextKey] = useState("revenue_chart");
+  const [pinnedInsights, setPinnedInsights] = useState([]);
+  const [activeTrendMetric, setActiveTrendMetric] = useState("revenue");
 
   const [loading, setLoading] = useState({
     summary: false,
@@ -188,6 +267,8 @@ const Dashboard = () => {
   });
 
   useEffect(() => {
+    if (!isHydrated) return undefined;
+
     let cancelled = false;
 
     const fetchOptions = async () => {
@@ -200,7 +281,8 @@ const Dashboard = () => {
         if (!cancelled) {
           setErrors((prev) => ({
             ...prev,
-            options: error?.response?.data?.message || "Failed to load filter options",
+            options:
+              error?.response?.data?.message || "Failed to load filter options",
           }));
         }
       } finally {
@@ -212,9 +294,11 @@ const Dashboard = () => {
     return () => {
       cancelled = true;
     };
-  }, [filters]);
+  }, [filters, isHydrated]);
 
   useEffect(() => {
+    if (!isHydrated) return undefined;
+
     let cancelled = false;
     const requestId = ++requestRef.current;
 
@@ -242,106 +326,129 @@ const Dashboard = () => {
         end: previousRange.end,
       };
 
-      const [
-        summaryResult,
-        seriesResult,
-        previousSeriesResult,
-        categoryResult,
-        regionResult,
-        deviceResult,
-        previousCategoryResult,
-      ] = await Promise.allSettled([
-        fetchAnalyticsSummary(currentFilters),
-        fetchAnalyticsSeries(currentFilters),
-        filters.compareMode
-          ? fetchAnalyticsSeries(previousFilters)
-          : Promise.resolve([]),
-        fetchAnalyticsByCategory(currentFilters),
-        fetchAnalyticsByRegion(currentFilters),
-        fetchAnalyticsByDevice(currentFilters),
-        filters.compareMode
-          ? fetchAnalyticsByCategory(previousFilters)
-          : Promise.resolve([]),
-      ]);
-
-      if (cancelled || requestId !== requestRef.current) return;
-
-      if (summaryResult.status === "fulfilled") {
-        setSummary(summaryResult.value);
-      } else {
-        setErrors((prev) => ({
-          ...prev,
-          summary:
-            summaryResult.reason?.response?.data?.message ||
-            "Failed to load summary metrics",
-        }));
-      }
-
-      if (seriesResult.status === "fulfilled") {
-        setSeries(seriesResult.value || []);
-      } else {
-        setErrors((prev) => ({
-          ...prev,
-          trend:
-            seriesResult.reason?.response?.data?.message ||
-            "Failed to load revenue trend",
-        }));
-      }
-
-      if (previousSeriesResult.status === "fulfilled") {
-        setPreviousSeries(previousSeriesResult.value || []);
-      } else {
-        setPreviousSeries([]);
-        setErrors((prev) => ({
-          ...prev,
-          trend:
-            previousSeriesResult.reason?.response?.data?.message ||
-            "Failed to load compare trend",
-        }));
-      }
-
-      const breakdownFailed =
-        categoryResult.status !== "fulfilled" ||
-        regionResult.status !== "fulfilled" ||
-        deviceResult.status !== "fulfilled";
-
-      if (!breakdownFailed) {
-        setCategoryRows(categoryResult.value || []);
-        setRegionRows(regionResult.value || []);
-        setDeviceRows(deviceResult.value || []);
-      } else {
-        setErrors((prev) => ({
-          ...prev,
-          breakdowns: "Failed to load one or more breakdown charts",
-        }));
-      }
-
-      if (categoryResult.status === "fulfilled") {
-        const canCompareInsights =
-          filters.compareMode && previousCategoryResult.status === "fulfilled";
-
-        if (filters.compareMode && previousCategoryResult.status !== "fulfilled") {
+      // Fetch each endpoint sequentially to avoid hitting the API with many parallel calls on load.
+      // This helps prevent rate limits and ensures the UI can mount quickly.
+      let summaryResult;
+      try {
+        summaryResult = await fetchAnalyticsSummary(currentFilters);
+        if (cancelled || requestId !== requestRef.current) return;
+        setSummary(summaryResult);
+      } catch (error) {
+        if (!cancelled) {
           setErrors((prev) => ({
             ...prev,
-            insights: "Failed to compute compare-based insights",
+            summary:
+              error?.response?.data?.message ||
+              "Failed to load summary metrics",
           }));
         }
+      }
 
-        setInsights(
-          buildInsights(
-            categoryResult.value || [],
-            previousCategoryResult.status === "fulfilled"
-              ? previousCategoryResult.value || []
-              : [],
-            canCompareInsights
-          )
-        );
+      let seriesResult;
+      try {
+        seriesResult = await fetchAnalyticsSeries(currentFilters);
+        if (cancelled || requestId !== requestRef.current) return;
+        setSeries(seriesResult || []);
+      } catch (error) {
+        if (!cancelled) {
+          setErrors((prev) => ({
+            ...prev,
+            trend:
+              error?.response?.data?.message || "Failed to load revenue trend",
+          }));
+        }
+      }
+
+      if (filters.compareMode) {
+        try {
+          const previousSeriesResult =
+            await fetchAnalyticsSeries(previousFilters);
+          if (cancelled || requestId !== requestRef.current) return;
+          setPreviousSeries(previousSeriesResult || []);
+        } catch (error) {
+          if (!cancelled) {
+            setPreviousSeries([]);
+            setErrors((prev) => ({
+              ...prev,
+              trend:
+                error?.response?.data?.message ||
+                "Failed to load compare trend",
+            }));
+          }
+        }
+      }
+
+      let categoryResult;
+      try {
+        categoryResult = await fetchAnalyticsByCategory(currentFilters);
+        if (cancelled || requestId !== requestRef.current) return;
+        setCategoryRows(categoryResult || []);
+      } catch (error) {
+        if (!cancelled) {
+          setErrors((prev) => ({
+            ...prev,
+            breakdowns: "Failed to load category breakdown",
+          }));
+        }
+      }
+
+      let regionResult;
+      try {
+        regionResult = await fetchAnalyticsByRegion(currentFilters);
+        if (cancelled || requestId !== requestRef.current) return;
+        setRegionRows(regionResult || []);
+      } catch (error) {
+        if (!cancelled) {
+          setErrors((prev) => ({
+            ...prev,
+            breakdowns: "Failed to load region breakdown",
+          }));
+        }
+      }
+
+      let deviceResult;
+      try {
+        deviceResult = await fetchAnalyticsByDevice(currentFilters);
+        if (cancelled || requestId !== requestRef.current) return;
+        setDeviceRows(deviceResult || []);
+      } catch (error) {
+        if (!cancelled) {
+          setErrors((prev) => ({
+            ...prev,
+            breakdowns: "Failed to load device breakdown",
+          }));
+        }
+      }
+
+      if (filters.compareMode) {
+        try {
+          const previousCategoryResult =
+            await fetchAnalyticsByCategory(previousFilters);
+          if (cancelled || requestId !== requestRef.current) return;
+
+          const canCompareInsights =
+            filters.compareMode && Array.isArray(previousCategoryResult);
+
+          setInsights(
+            buildInsights(
+              categoryResult || [],
+              canCompareInsights ? previousCategoryResult : [],
+              canCompareInsights,
+            ),
+          );
+        } catch (error) {
+          if (!cancelled) {
+            setErrors((prev) => ({
+              ...prev,
+              insights: "Failed to compute compare-based insights",
+            }));
+            setInsights(defaultInsights);
+          }
+        }
       } else {
-        setInsights(defaultInsights);
-        setErrors((prev) => ({
-          ...prev,
-          insights: "Failed to compute dynamic insights",
-        }));
+        if (categoryResult) {
+          setInsights(buildInsights(categoryResult, [], false));
+        }
       }
 
       setLoading((prev) => ({
@@ -368,7 +475,7 @@ const Dashboard = () => {
     return () => {
       cancelled = true;
     };
-  }, [filters, previousRange]);
+  }, [filters, previousRange, isHydrated]);
 
   const trendChartData = useMemo(
     () =>
@@ -386,93 +493,261 @@ const Dashboard = () => {
         previousAov: filters.compareMode
           ? safeDivide(
               previousSeries[index]?.totalRevenue,
-              previousSeries[index]?.totalOrders
+              previousSeries[index]?.totalOrders,
             )
           : null,
         totalRevenue: toNullableNumber(row.totalRevenue),
         totalOrders: toNullableNumber(row.totalOrders),
         totalQuantity: toNullableNumber(row.totalQuantity),
       })),
-    [series, previousSeries, filters.compareMode]
+    [series, previousSeries, filters.compareMode],
   );
+
+  const aiTrendSeries = useMemo(
+    () =>
+      trendChartData.map((row) => ({
+        period: row.period,
+        currentValue: row.currentRevenue ?? 0,
+        currentRevenue: row.currentRevenue ?? 0,
+        currentOrders: row.currentOrders ?? 0,
+        currentAov: row.currentAov ?? 0,
+      })),
+    [trendChartData],
+  );
+
+  const aiFilterContext = useMemo(
+    () => ({
+      start: filters.start,
+      end: filters.end,
+      groupBy: filters.groupBy,
+      timezone: filters.timezone,
+      compareMode: filters.compareMode,
+    }),
+    [
+      filters.start,
+      filters.end,
+      filters.groupBy,
+      filters.timezone,
+      filters.compareMode,
+    ],
+  );
+
+  const topCategoryContext = useMemo(
+    () =>
+      categoryRows.slice(0, 5).map((row) => ({
+        category: row.category,
+        revenue: row.totalRevenue || 0,
+        orders: row.totalOrders || 0,
+        quantity: row.totalQuantity || 0,
+      })),
+    [categoryRows],
+  );
+
+  const topRegionContext = useMemo(
+    () =>
+      regionRows.slice(0, 3).map((row) => ({
+        region: row.region,
+        revenue: row.totalRevenue || 0,
+        orders: row.totalOrders || 0,
+      })),
+    [regionRows],
+  );
+
+  const activeTrendMetricMeta =
+    TREND_METRIC_META[activeTrendMetric] || TREND_METRIC_META.revenue;
+
+  const drawerContext = useMemo(() => {
+    const sharedContext = {
+      filters: aiFilterContext,
+      summary: {
+        totalRevenue: summary?.totalRevenue || 0,
+        totalOrders: summary?.totalOrders || 0,
+      },
+      topCategories: topCategoryContext,
+      topRegions: topRegionContext,
+    };
+
+    if (drawerContextKey === "orders_chart") {
+      return {
+        ...sharedContext,
+        activeContext: "orders_chart",
+        label: CONTEXT_LABELS.orders_chart,
+        data: trendChartData.map((row) => ({
+          period: row.period,
+          currentValue: row.currentOrders ?? 0,
+          currentOrders: row.currentOrders ?? 0,
+        })),
+      };
+    }
+
+    if (drawerContextKey === "category_chart") {
+      return {
+        ...sharedContext,
+        activeContext: "category_chart",
+        label: CONTEXT_LABELS.category_chart,
+        data: topCategoryContext.map((row) => ({
+          period: row.category,
+          currentValue: row.revenue ?? 0,
+          currentRevenue: row.revenue ?? 0,
+          currentOrders: row.orders ?? 0,
+        })),
+      };
+    }
+
+    return {
+      ...sharedContext,
+      activeContext: "revenue_chart",
+      label: CONTEXT_LABELS.revenue_chart,
+      data: aiTrendSeries,
+    };
+  }, [
+    aiFilterContext,
+    aiTrendSeries,
+    drawerContextKey,
+    summary,
+    topCategoryContext,
+    topRegionContext,
+    trendChartData,
+  ]);
+
+  const openAIDrawer = () => {
+    const nextContext = pickContextFromViewport([
+      { key: "orders_chart", element: kpiSectionRef.current },
+      { key: "revenue_chart", element: revenueSectionRef.current },
+      { key: "category_chart", element: categorySectionRef.current },
+    ]);
+
+    setDrawerContextKey(nextContext);
+    setIsDrawerOpen(true);
+  };
+
+  const handlePinInsight = (insight) => {
+    setPinnedInsights((previous) => {
+      if (previous.some((item) => item.id === insight.id)) return previous;
+      return [insight, ...previous];
+    });
+  };
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_15%_20%,rgba(34,211,238,0.12),transparent_30%),radial-gradient(circle_at_85%_10%,rgba(99,102,241,0.14),transparent_32%),linear-gradient(135deg,#020617_0%,#0b1220_45%,#111827_100%)] p-4 text-slate-100 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-[1600px]">
-        <header className="mb-6 rounded-2xl border border-white/10 bg-slate-900/55 p-6 shadow-xl backdrop-blur-xl">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="mb-2 text-xs uppercase tracking-[0.24em] text-cyan-300/80">
-                Dynamic Analytics
-              </p>
-              <h1 className="text-3xl font-semibold tracking-tight text-white">
-                Sales Command Center
-              </h1>
-              <p className="mt-2 text-sm text-slate-300">
-                Real-time aggregation powered by <span className="font-medium">rawsales</span>
-              </p>
-            </div>
-            <div className="rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-100">
-              Live snapshot updates with filter-driven insights
-            </div>
+        <header className="mb-5 rounded-2xl border border-white/10 bg-slate-900/55 px-6 py-4 shadow-xl backdrop-blur-xl">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+              Sales Command Center
+            </h1>
+            <p className="mt-1 text-sm text-slate-400">
+              AI requests now flow through a centralized Node to Python gateway.
+            </p>
           </div>
         </header>
 
         <GlobalFilterBar options={filterOptions} loading={loading.options} />
-        {errors.options && <p className="mb-4 text-sm text-rose-300">{errors.options}</p>}
+        {!isHydrated && (
+          <p className="mb-4 text-sm text-slate-300">
+            Loading saved filters...
+          </p>
+        )}
+        {isHydrated && (
+          <>
+            {errors.options && (
+              <p className="mb-4 text-sm text-rose-300">{errors.options}</p>
+            )}
 
-        <KpiCards
-          summary={summary}
-          trendData={trendChartData}
-          loading={loading.summary}
-          error={errors.summary}
-          compareMode={filters.compareMode}
-        />
+            <div ref={kpiSectionRef}>
+              <KpiCards
+                summary={summary}
+                trendData={trendChartData}
+                loading={loading.summary}
+                error={errors.summary}
+                compareMode={filters.compareMode}
+              />
+            </div>
 
-        <div className="mb-6">
-          <RevenueTrendChart
-            data={trendChartData}
-            compareMode={filters.compareMode}
-            loading={loading.trend}
-            error={errors.trend}
-          />
-        </div>
+            <div ref={revenueSectionRef} className="mb-6">
+              <RevenueTrendChart
+                data={trendChartData}
+                compareMode={filters.compareMode}
+                loading={loading.trend}
+                error={errors.trend}
+                activeMetric={activeTrendMetric}
+                onMetricChange={setActiveTrendMetric}
+              />
+            </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-6 2xl:grid-cols-5">
-          <div className="2xl:col-span-3">
-            <RevenueByCategoryChart
-              data={categoryRows}
-              loading={loading.breakdowns}
-              error={errors.breakdowns}
+            <div
+              ref={categorySectionRef}
+              className="mb-6 grid grid-cols-1 gap-6 2xl:grid-cols-5"
+            >
+              <div className="2xl:col-span-3">
+                <RevenueByCategoryChart
+                  data={categoryRows}
+                  loading={loading.breakdowns}
+                  error={errors.breakdowns}
+                />
+              </div>
+              <div className="2xl:col-span-2">
+                <RevenueByRegionChart
+                  data={regionRows}
+                  loading={loading.breakdowns}
+                  error={errors.breakdowns}
+                />
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <DeviceSplitChart
+                data={deviceRows}
+                loading={loading.breakdowns}
+                error={errors.breakdowns}
+              />
+            </div>
+
+            <div className="mb-6">
+              <ConversionFunnel summary={summary} loading={loading.summary} />
+            </div>
+
+            <DecisionInsights
+              insights={insights}
+              loading={loading.insights}
+              error={errors.insights}
             />
-          </div>
-          <div className="2xl:col-span-2">
-            <RevenueByRegionChart
-              data={regionRows}
-              loading={loading.breakdowns}
-              error={errors.breakdowns}
-            />
-          </div>
-        </div>
 
-        <div className="mb-6">
-          <DeviceSplitChart
-            data={deviceRows}
-            loading={loading.breakdowns}
-            error={errors.breakdowns}
-          />
-        </div>
+            {pinnedInsights.length > 0 && (
+              <section className="mt-6">
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold text-white">
+                    Pinned Copilot Insights
+                  </h3>
+                  <p className="text-sm text-slate-400">
+                    Saved AI responses from the drawer, promoted into reusable
+                    dashboard cards
+                  </p>
+                </div>
 
-        <div className="mb-6">
-          <ConversionFunnel summary={summary} loading={loading.summary} />
-        </div>
-
-        <DecisionInsights
-          insights={insights}
-          loading={loading.insights}
-          error={errors.insights}
-        />
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                  {pinnedInsights.map((insight) => (
+                    <AIInsightCard
+                      key={insight.id}
+                      intent={insight.intent}
+                      data={insight.payload}
+                      title={insight.title}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
+        )}
       </div>
+
+      <AskAIDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        context={drawerContext}
+        onPinInsight={handlePinInsight}
+      />
+      <FloatingAIButton isOpen={isDrawerOpen} onClick={openAIDrawer} />
     </div>
   );
 };
