@@ -58,6 +58,29 @@ const COUNTRY_ISO_BY_NAME = (() => {
   return map;
 })();
 
+const COUNTRY_CANONICAL_NAME_BY_NORMALIZED = (() => {
+  const map = new Map();
+
+  Country.getAllCountries().forEach((country) => {
+    const canonical = String(country?.name || "").trim();
+    const normalized = normalizeGeoName(canonical);
+    if (normalized && canonical) {
+      map.set(normalized, canonical);
+    }
+  });
+
+  Object.entries(COUNTRY_NAME_ALIASES).forEach(([source, target]) => {
+    const sourceKey = normalizeGeoName(source);
+    const targetKey = normalizeGeoName(target);
+    const canonicalTarget = map.get(targetKey) || target;
+    if (sourceKey && canonicalTarget) {
+      map.set(sourceKey, canonicalTarget);
+    }
+  });
+
+  return map;
+})();
+
 const COUNTRY_STATE_CITY_CACHE = new Map();
 
 function numericExpr(path) {
@@ -429,6 +452,53 @@ function resolveCountryIso(countryName) {
   return COUNTRY_ISO_BY_NAME.get(normalized) || "";
 }
 
+function toCanonicalCountryName(countryName) {
+  const raw = String(countryName || "").trim();
+  if (!raw) return "Unknown";
+
+  const normalized = normalizeGeoName(raw);
+  const canonical = COUNTRY_CANONICAL_NAME_BY_NORMALIZED.get(normalized);
+  if (canonical) return canonical;
+
+  return raw;
+}
+
+function mergeWorldRowsByCountry(rows = []) {
+  const merged = new Map();
+
+  rows.forEach((row) => {
+    const countryName = toCanonicalCountryName(row?.name);
+    const revenue = Number(row?.revenue || 0);
+    const orders = Number(row?.orders || 0);
+    const customers = Number(row?.customers || 0);
+
+    if (!merged.has(countryName)) {
+      merged.set(countryName, {
+        name: countryName,
+        revenue: 0,
+        orders: 0,
+        customers: 0,
+      });
+    }
+
+    const entry = merged.get(countryName);
+    entry.revenue += revenue;
+    entry.orders += orders;
+    entry.customers += customers;
+  });
+
+  return [...merged.values()].map((entry) => {
+    const aov = entry.orders > 0 ? entry.revenue / entry.orders : 0;
+    return {
+      name: entry.name,
+      revenue: rounded(entry.revenue),
+      orders: Number(entry.orders || 0),
+      aov: rounded(aov),
+      customers: Number(entry.customers || 0),
+    };
+  });
+}
+
 function getCountryStateCityIndex(countryIso) {
   if (!countryIso) return null;
   if (COUNTRY_STATE_CITY_CACHE.has(countryIso)) {
@@ -658,10 +728,15 @@ async function aggregateGeoTotalsByRange(query, range) {
 async function aggregateGeoRows(query) {
   const previousRange = buildPreviousRange(query.startDate, query.endDate);
 
-  const [currentRows, previousRows] = await Promise.all([
+  const [currentRowsRaw, previousRowsRaw] = await Promise.all([
     aggregateGeoRowsByRange(query, query),
     aggregateGeoRowsByRange(query, previousRange),
   ]);
+
+  const currentRows =
+    query.level === "world" ? mergeWorldRowsByCountry(currentRowsRaw) : currentRowsRaw;
+  const previousRows =
+    query.level === "world" ? mergeWorldRowsByCountry(previousRowsRaw) : previousRowsRaw;
 
   const previousLookup = new Map();
   previousRows.forEach((row) => {
@@ -744,6 +819,14 @@ async function aggregateGeoMap(query) {
 
 async function aggregateGeoTopRegions(query) {
   const rows = await aggregateGeoRows(query);
+
+  if (query.level === "country" && query.country) {
+    const rolledRows = rollupRowsToCountryStates(rows, query.country, query.metric);
+    if (rolledRows.length > 0) {
+      return rolledRows.slice(0, query.limit);
+    }
+  }
+
   return rows.slice(0, query.limit);
 }
 

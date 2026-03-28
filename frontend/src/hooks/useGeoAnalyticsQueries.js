@@ -193,6 +193,7 @@ export const useGeoAnalyticsQueries = (filters, enabled = true) => {
 
   return {
     mapLevel,
+    canQueryHierarchy,
     debouncedParams: effectiveDebouncedParams,
     optionsQuery,
     summaryQuery,

@@ -21,9 +21,15 @@ import { formatPercent } from "../utils/analyticsFormatters";
 import { useGeoAnalyticsFilters } from "../hooks/useGeoAnalyticsFilters";
 import { useGeoAnalyticsQueries } from "../hooks/useGeoAnalyticsQueries";
 
-const RevenueTrendChart = lazy(() => import("../components/analytics/RevenueTrendChart"));
-const RegionBarChart = lazy(() => import("../components/analytics/RegionBarChart"));
-const CategoryHeatmap = lazy(() => import("../components/analytics/CategoryHeatmap"));
+const RevenueTrendChart = lazy(
+  () => import("../components/analytics/RevenueTrendChart"),
+);
+const RegionBarChart = lazy(
+  () => import("../components/analytics/RegionBarChart"),
+);
+const CategoryHeatmap = lazy(
+  () => import("../components/analytics/CategoryHeatmap"),
+);
 
 const getErrorMessage = (error) =>
   error?.response?.data?.message || error?.message || "";
@@ -46,6 +52,7 @@ const MapAnalytics = () => {
 
   const {
     mapLevel,
+    canQueryHierarchy,
     optionsQuery,
     summaryQuery,
     mapQuery,
@@ -61,14 +68,14 @@ const MapAnalytics = () => {
     (preset) => {
       applyDatePreset(preset);
     },
-    [applyDatePreset]
+    [applyDatePreset],
   );
 
   const handleCustomDateRange = useCallback(
     (startDate, endDate) => {
       applyCustomDateRange(startDate, endDate);
     },
-    [applyCustomDateRange]
+    [applyCustomDateRange],
   );
 
   const syncSegmentAndCustomerType = useCallback((key, value, patch) => {
@@ -108,6 +115,7 @@ const MapAnalytics = () => {
           patch.state = "";
           patch.city = "";
         } else {
+          patch.level = "country";
           patch.state = "";
           patch.city = "";
         }
@@ -119,9 +127,23 @@ const MapAnalytics = () => {
             patch.level = "country";
           }
           patch.city = "";
-        } else if (mapFilters.level === "country") {
+        } else if (
+          mapFilters.level === "country" ||
+          mapFilters.level === "state" ||
+          mapFilters.level === "city"
+        ) {
           patch.level = "state";
           patch.city = "";
+        }
+      }
+
+      if (key === "city") {
+        if (!normalized) {
+          if (mapFilters.level === "city") {
+            patch.level = "state";
+          }
+        } else {
+          patch.level = "city";
         }
       }
 
@@ -134,7 +156,7 @@ const MapAnalytics = () => {
       syncSegmentAndCustomerType(key, normalized, patch);
       setGeoFilters(patch);
     },
-    [mapFilters.level, setGeoFilter, setGeoFilters, syncSegmentAndCustomerType]
+    [mapFilters.level, setGeoFilter, setGeoFilters, syncSegmentAndCustomerType],
   );
 
   const handleDrillDown = useCallback(
@@ -152,7 +174,7 @@ const MapAnalytics = () => {
         drillToLevel("city", value);
       }
     },
-    [drillToLevel]
+    [drillToLevel],
   );
 
   const handleBreadcrumbClick = useCallback(
@@ -169,7 +191,7 @@ const MapAnalytics = () => {
         drillToLevel("state", mapFilters.state);
       }
     },
-    [drillToLevel, mapFilters.country, mapFilters.state]
+    [drillToLevel, mapFilters.country, mapFilters.state],
   );
 
   const breadcrumbs = useMemo(() => {
@@ -177,7 +199,10 @@ const MapAnalytics = () => {
     if (mapFilters.level !== "world" && mapFilters.country) {
       items.push({ level: "country", label: mapFilters.country });
     }
-    if ((mapFilters.level === "state" || mapFilters.level === "city") && mapFilters.state) {
+    if (
+      (mapFilters.level === "state" || mapFilters.level === "city") &&
+      mapFilters.state
+    ) {
       items.push({ level: "state", label: mapFilters.state });
     }
     if (mapFilters.level === "city" && mapFilters.city) {
@@ -187,12 +212,19 @@ const MapAnalytics = () => {
   }, [mapFilters.level, mapFilters.country, mapFilters.state, mapFilters.city]);
 
   const mapRows = Array.isArray(mapQuery.data) ? mapQuery.data : [];
-  const topRegionsRows = Array.isArray(topRegionsQuery.data) ? topRegionsQuery.data : [];
-  const trendRows = Array.isArray(revenueTrendQuery.data) ? revenueTrendQuery.data : [];
+  const topRegionsRows =
+    canQueryHierarchy && Array.isArray(topRegionsQuery.data)
+      ? topRegionsQuery.data
+      : [];
+  const trendRows = Array.isArray(revenueTrendQuery.data)
+    ? revenueTrendQuery.data
+    : [];
   const previousTrendRows = Array.isArray(previousRevenueTrendQuery.data)
     ? previousRevenueTrendQuery.data
     : [];
-  const regionBarRows = Array.isArray(regionBarQuery.data) ? regionBarQuery.data : [];
+  const regionBarRows = Array.isArray(regionBarQuery.data)
+    ? regionBarQuery.data
+    : [];
   const insightsRows = Array.isArray(insightsQuery.data?.insights)
     ? insightsQuery.data.insights
     : [];
@@ -224,7 +256,9 @@ const MapAnalytics = () => {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_15%_20%,rgba(34,211,238,0.12),transparent_30%),radial-gradient(circle_at_85%_10%,rgba(99,102,241,0.14),transparent_32%),linear-gradient(135deg,#020617_0%,#0b1220_45%,#111827_100%)] px-4 py-5 text-[#e6e6e6] sm:px-5 lg:px-6 lg:py-6">
       <div className="mx-auto w-full max-w-[1500px]">
-        <p className="mb-1 text-xs text-[#9aa0a6]">Dashboard &gt; Map Analytics</p>
+        <p className="mb-1 text-xs text-[#9aa0a6]">
+          Dashboard &gt; Map Analytics
+        </p>
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-4xl font-semibold tracking-tight text-[#f1f3f4]">
@@ -303,7 +337,9 @@ const MapAnalytics = () => {
                     <TopRegionsTable
                       rows={topRegionsRows}
                       level={mapFilters.level}
-                      loading={topRegionsQuery.isLoading || topRegionsQuery.isFetching}
+                      loading={
+                        topRegionsQuery.isLoading || topRegionsQuery.isFetching
+                      }
                       error={getErrorMessage(topRegionsQuery.error)}
                       onDrillDown={handleDrillDown}
                     />
@@ -337,7 +373,9 @@ const MapAnalytics = () => {
                       <RegionBarChart
                         data={regionBarRows}
                         metric={mapFilters.metric}
-                        loading={regionBarQuery.isLoading || regionBarQuery.isFetching}
+                        loading={
+                          regionBarQuery.isLoading || regionBarQuery.isFetching
+                        }
                         error={getErrorMessage(regionBarQuery.error)}
                       />
                     </Suspense>
@@ -347,7 +385,10 @@ const MapAnalytics = () => {
                     <Suspense fallback={<LazyChartFallback />}>
                       <CategoryHeatmap
                         data={categoryHeatmapQuery.data}
-                        loading={categoryHeatmapQuery.isLoading || categoryHeatmapQuery.isFetching}
+                        loading={
+                          categoryHeatmapQuery.isLoading ||
+                          categoryHeatmapQuery.isFetching
+                        }
                         error={getErrorMessage(categoryHeatmapQuery.error)}
                       />
                     </Suspense>

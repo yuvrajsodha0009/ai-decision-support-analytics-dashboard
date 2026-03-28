@@ -281,10 +281,15 @@ No required `.env` keys for local development by default. The dev server proxies
 ![Dashboard](./screenshots/dashboard.png)
 ![AI Summary](./screenshots/ai-summary.png)
 ![Ask AI](./screenshots/ask-ai.png)
+![Category Page](./screenshots/category-page.png)
+![Map Page](./screenshots/map-page.png)
+![Admin Panel User Management](./screenshots/admin-user-management.png)
 
 ### Suggested Screenshots to Capture
 
 - Main dashboard with charts and KPI cards visible
+- Category analytics page showing category-wise comparison and trends
+- Map analytics page with geo-visualization and drill-down interaction
 - AI Summary response panel showing generated insights
 - Ask AI chat panel with one query and response
 - Login + forgot password + OTP verification flow

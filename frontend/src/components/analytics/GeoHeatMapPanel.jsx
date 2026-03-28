@@ -15,7 +15,13 @@ import { fetchMapGeoJson } from "../../Services/mapAnalyticsApi";
 import { formatMetricValue } from "../../utils/analyticsFormatters";
 import { GEO_METRIC_LABELS } from "../../utils/geoAnalyticsConstants";
 
-echarts.use([MapChart, GeoComponent, TooltipComponent, VisualMapComponent, CanvasRenderer]);
+echarts.use([
+  MapChart,
+  GeoComponent,
+  TooltipComponent,
+  VisualMapComponent,
+  CanvasRenderer,
+]);
 countries.registerLocale(enLocale);
 
 const COUNTRY_NAME_ALIASES = {
@@ -30,7 +36,7 @@ const COUNTRY_NAME_ALIASES = {
   "Syrian Arab Republic": "Syria",
   "Iran (Islamic Republic of)": "Iran",
   "Moldova (Republic of)": "Moldova",
-  "Türkiye": "Turkey",
+  Türkiye: "Turkey",
   "TÃ¼rkiye": "Turkey",
   "TÃƒÂ¼rkiye": "Turkey",
 };
@@ -48,7 +54,7 @@ const COUNTRY_ALIAS_BY_NORMALIZED = Object.entries(COUNTRY_NAME_ALIASES).reduce(
     accumulator[normalizeGeoName(source)] = target;
     return accumulator;
   },
-  {}
+  {},
 );
 
 const REGISTERED_MAPS = new Set();
@@ -58,7 +64,8 @@ const resolveCountryCode = (countryName) => {
 
   const trimmed = countryName.trim();
   const normalized = normalizeGeoName(trimmed);
-  const alias = COUNTRY_NAME_ALIASES[trimmed] || COUNTRY_ALIAS_BY_NORMALIZED[normalized];
+  const alias =
+    COUNTRY_NAME_ALIASES[trimmed] || COUNTRY_ALIAS_BY_NORMALIZED[normalized];
   const attempts = [trimmed, alias].filter(Boolean);
 
   for (const name of attempts) {
@@ -82,7 +89,9 @@ const formatSignedPercent = (value, digits = 1) => {
 };
 
 const getErrorMessage = (error) =>
-  error?.response?.data?.message || error?.message || "Failed to load map geometry";
+  error?.response?.data?.message ||
+  error?.message ||
+  "Failed to load map geometry";
 
 const GeoHeatMapPanel = ({
   level,
@@ -97,7 +106,7 @@ const GeoHeatMapPanel = ({
   const countryCode = useMemo(() => resolveCountryCode(country), [country]);
   const mapName = useMemo(
     () => (mapLevel === "world" ? "world-map" : `country-map-${countryCode}`),
-    [mapLevel, countryCode]
+    [mapLevel, countryCode],
   );
 
   const geometryQuery = useQuery({
@@ -109,7 +118,7 @@ const GeoHeatMapPanel = ({
           : {
               level: "country",
               countryCode,
-            }
+            },
       ),
     enabled: mapLevel === "world" || Boolean(countryCode),
     staleTime: 24 * 60 * 60 * 1000,
@@ -145,7 +154,7 @@ const GeoHeatMapPanel = ({
       featureEntries.push({ normalized, name: featureName });
 
       const isoA2 = String(
-        properties?.["iso-a2"] || properties?.["hc-a2"] || ""
+        properties?.["iso-a2"] || properties?.["hc-a2"] || "",
       )
         .trim()
         .toLowerCase();
@@ -178,17 +187,23 @@ const GeoHeatMapPanel = ({
       const mapped = incomingRows.map((entry) => {
         const rawName = String(entry?.name || "").trim();
         const aliasName = COUNTRY_NAME_ALIASES[rawName] || rawName;
-        const isoCode = resolveCountryCode(rawName) || resolveCountryCode(aliasName);
+        const isoCode =
+          resolveCountryCode(rawName) || resolveCountryCode(aliasName);
         const normalizedCandidates = [
           normalizeGeoName(rawName),
           normalizeGeoName(aliasName),
         ].filter(Boolean);
 
-        let matchedName = isoCode ? mapFeatureIndex.nameByIso.get(isoCode) || "" : "";
+        let matchedName = isoCode
+          ? mapFeatureIndex.nameByIso.get(isoCode) || ""
+          : "";
         if (!matchedName) {
           matchedName =
             normalizedCandidates
-              .map((candidate) => mapFeatureIndex.nameByNormalized.get(candidate) || "")
+              .map(
+                (candidate) =>
+                  mapFeatureIndex.nameByNormalized.get(candidate) || "",
+              )
               .find(Boolean) || "";
         }
 
@@ -203,7 +218,11 @@ const GeoHeatMapPanel = ({
 
       const matchedRows = mapped.filter((row) => row.__matched);
       const renderedRows = (matchedRows.length > 0 ? matchedRows : mapped).map(
-        ({ __matched, ...row }) => row
+        (entry) => {
+          const row = { ...entry };
+          delete row.__matched;
+          return row;
+        },
       );
 
       return {
@@ -223,7 +242,7 @@ const GeoHeatMapPanel = ({
           (feature) =>
             feature.normalized === normalized ||
             feature.normalized.startsWith(normalized) ||
-            normalized.startsWith(feature.normalized)
+            normalized.startsWith(feature.normalized),
         );
         matchedName = relaxedMatch?.name || "";
       }
@@ -238,7 +257,11 @@ const GeoHeatMapPanel = ({
 
     const matchedRows = mapped.filter((row) => row.__matched);
     const renderedRows = (matchedRows.length > 0 ? matchedRows : mapped).map(
-      ({ __matched, ...row }) => row
+      (entry) => {
+        const row = { ...entry };
+        delete row.__matched;
+        return row;
+      },
     );
 
     return {
@@ -291,11 +314,17 @@ const GeoHeatMapPanel = ({
         formatter: (params) => {
           const row = params?.data || {};
           const label = params?.name || row.name || "Unknown";
-          const revenue = formatMetricValue("revenue", row.revenue ?? row.value ?? 0);
+          const revenue = formatMetricValue(
+            "revenue",
+            row.revenue ?? row.value ?? 0,
+          );
           const orders = formatMetricValue("orders", row.orders ?? 0);
           const aov = formatMetricValue("aov", row.aov ?? 0);
           const customers = formatMetricValue("customers", row.customers ?? 0);
-          const growth = formatSignedPercent(row.revenueGrowth ?? row.growth ?? 0, 1);
+          const growth = formatSignedPercent(
+            row.revenueGrowth ?? row.growth ?? 0,
+            1,
+          );
           return `
             <div style="min-width:170px;">
               <div style="font-weight:600;margin-bottom:6px;">${label}</div>
@@ -351,7 +380,7 @@ const GeoHeatMapPanel = ({
         },
       ],
     }),
-    [mapName, mapLevel, seriesData, valueRange.min, valueRange.max]
+    [mapName, mapLevel, seriesData, valueRange.min, valueRange.max],
   );
 
   const onEvents = useMemo(
@@ -360,7 +389,8 @@ const GeoHeatMapPanel = ({
         if (typeof onDrillDown !== "function") return;
 
         if (mapLevel === "world" && level === "world") {
-          const clickedName = typeof params?.name === "string" ? params.name : "";
+          const clickedName =
+            typeof params?.name === "string" ? params.name : "";
           const clickedIso = resolveCountryCode(clickedName);
           const backendName =
             params?.data?.backendName ||
@@ -371,20 +401,27 @@ const GeoHeatMapPanel = ({
           return;
         }
 
-        if (mapLevel === "country" && level === "country") {
+        if (
+          mapLevel === "country" &&
+          (level === "country" || level === "state" || level === "city")
+        ) {
           const stateName = String(params?.name || "").trim();
           if (!stateName) return;
           onDrillDown("state", stateName);
         }
       },
     }),
-    [mapLevel, level, backendCountryByIso, onDrillDown]
+    [mapLevel, level, backendCountryByIso, onDrillDown],
   );
 
-  const geometryError = mapLevel === "country" && !countryCode
-    ? `No country map key found for "${country}"`
-    : "";
-  const showError = error || geometryError || (geometryQuery.error ? getErrorMessage(geometryQuery.error) : "");
+  const geometryError =
+    mapLevel === "country" && !countryCode
+      ? `No country map key found for "${country}"`
+      : "";
+  const showError =
+    error ||
+    geometryError ||
+    (geometryQuery.error ? getErrorMessage(geometryQuery.error) : "");
   const showLoading = loading || geometryQuery.isLoading;
   const nameMismatchWarning =
     mapLevel === "country" &&
@@ -399,7 +436,7 @@ const GeoHeatMapPanel = ({
   const metricLabel = GEO_METRIC_LABELS[metric] || "Revenue";
   const drilldownHelperText =
     level === "state" || level === "city"
-      ? "Use Top Regions table to select city-level drill-down."
+      ? "Click a state on map to switch state, or use Top Regions table to drill into city."
       : "Click a region to drill down to the next level.";
 
   return (
@@ -440,7 +477,8 @@ const GeoHeatMapPanel = ({
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
         <span>{metricLabel} heat scale</span>
         <span>
-          Low: {formatMetricValue(metric, valueRange.min)} | High: {formatMetricValue(metric, valueRange.max)}
+          Low: {formatMetricValue(metric, valueRange.min)} | High:{" "}
+          {formatMetricValue(metric, valueRange.max)}
         </span>
       </div>
     </section>
