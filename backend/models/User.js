@@ -54,6 +54,18 @@ const userSchema = new mongoose.Schema(
       required: [true, 'Password is required'],
       minlength: [6, 'Password must be at least 6 characters long']
     },
+    passwordResetOtpHash: {
+      type: String,
+      default: null,
+    },
+    passwordResetOtpExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    passwordResetOtpRequestedAt: {
+      type: Date,
+      default: null,
+    },
     // Canonical RBAC hierarchy.
     role: {
       type: String,

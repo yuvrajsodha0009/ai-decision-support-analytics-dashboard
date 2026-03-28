@@ -38,5 +38,6 @@ export const useAI = (intent, payload) => {
     data: query.data || null,
     isLoading: query.isLoading || query.isFetching,
     error: query.error?.response?.data?.message || query.error?.message || "",
+    refetch: query.refetch,
   };
 };

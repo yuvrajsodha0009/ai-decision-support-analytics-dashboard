@@ -8,3 +8,11 @@ export const fetchAIInsight = async (intent, payload) => {
 
   return response.data;
 };
+
+export const fetchAskAgentInsight = async (payload) => {
+  const response = await axios.post("/api/ai/ask-agent", {
+    payload,
+  });
+
+  return response.data;
+};

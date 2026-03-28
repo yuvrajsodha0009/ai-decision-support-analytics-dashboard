@@ -1,12 +1,14 @@
 import { useState } from "react";
 import axios from "axios";
-import { register, login } from "../Services/authApi";
+import {
+  login,
+  requestPasswordOtp,
+  resetPassword as resetPasswordRequest,
+} from "../Services/authApi";
 import { useNavigate } from "react-router-dom";
-import { Sparkles, Eye, EyeOff, X } from "lucide-react";
+import { Sparkles, Eye, EyeOff, X, ArrowRight, ArrowLeft } from "lucide-react";
 
 const Auth = () => {
-  const [mode, setMode] = useState("login");
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginRole, setLoginRole] = useState("user");
@@ -15,32 +17,30 @@ const Auth = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
-  const [resetPassword, setResetPassword] = useState("");
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetOldPassword, setResetOldPassword] = useState("");
+  const [resetOtp, setResetOtp] = useState("");
+  const [resetMethod, setResetMethod] = useState("otp");
   const [resetMessage, setResetMessage] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showResetOldPassword, setShowResetOldPassword] = useState(false);
+  const [cardTransform, setCardTransform] = useState(
+    "perspective(1000px) rotateX(0deg) rotateY(0deg)",
+  );
+  const [cardGlow, setCardGlow] = useState({ x: 50, y: 25 });
   const navigate = useNavigate();
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-  const toggle = () => {
-    setMode(mode === "login" ? "signup" : "login");
-    setLoginRole("user");
-    setError("");
-    setShowPassword(false);
-    setShowReset(false);
-    setResetMessage("");
-  };
+  const labelClass = "mb-2 block text-sm font-semibold text-slate-100";
+  const primaryInputClass =
+    "w-full rounded-xl border border-slate-400/70 bg-slate-900 px-4 py-3 text-slate-50 placeholder-slate-300 focus:border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-300 transition-all duration-300 disabled:opacity-50";
+  const passwordInputClass = `${primaryInputClass} pr-12`;
 
   const validateForm = () => {
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
-    const trimmedName = name.trim();
-
-    if (mode === "signup" && !trimmedName) {
-      setError("Name is required");
-      return false;
-    }
 
     if (!trimmedEmail) {
       setError("Email is required");
@@ -73,21 +73,13 @@ const Auth = () => {
 
     setLoading(true);
     try {
-      let res;
-      const data =
-        mode === "signup"
-          ? {
-              name: name.trim(),
-              email: email.trim().toLowerCase(),
-              password: password.trim(),
-            }
-          : {
-              email: email.trim().toLowerCase(),
-              password: password.trim(),
-              role: loginRole,
-            };
+      const data = {
+        email: email.trim().toLowerCase(),
+        password: password.trim(),
+        role: loginRole,
+      };
 
-      res = await (mode === "signup" ? register(data) : login(data));
+      const res = await login(data);
 
       const { token } = res.data;
       localStorage.setItem("token", token);
@@ -114,7 +106,9 @@ const Auth = () => {
     setResetMessage("");
 
     const trimmedEmail = resetEmail.trim().toLowerCase();
-    const trimmedPassword = resetPassword.trim();
+    const trimmedPassword = resetNewPassword.trim();
+    const trimmedOldPassword = resetOldPassword.trim();
+    const trimmedOtp = resetOtp.trim();
 
     if (!trimmedEmail || !trimmedPassword) {
       setResetMessage("Email and new password are required");
@@ -129,161 +123,225 @@ const Auth = () => {
       return;
     }
 
+    if (resetMethod === "oldPassword" && !trimmedOldPassword) {
+      setResetMessage("Old password is required");
+      return;
+    }
+
+    if (resetMethod === "otp" && !trimmedOtp) {
+      setResetMessage("OTP is required");
+      return;
+    }
+
     setResetLoading(true);
     try {
-      await axios.post("http://localhost:5000/api/auth/reset-password", {
+      await resetPasswordRequest({
         email: trimmedEmail,
         newPassword: trimmedPassword,
+        oldPassword:
+          resetMethod === "oldPassword" ? trimmedOldPassword : undefined,
+        otp: resetMethod === "otp" ? trimmedOtp : undefined,
       });
       setResetMessage("Password reset successful. You can now sign in.");
       setResetEmail("");
-      setResetPassword("");
+      setResetNewPassword("");
+      setResetOldPassword("");
+      setResetOtp("");
       setShowResetPassword(false);
+      setShowResetOldPassword(false);
     } catch (err) {
-      setResetMessage(err.response?.data?.message || "Failed to reset password");
+      setResetMessage(
+        err.response?.data?.message || "Failed to reset password",
+      );
     } finally {
       setResetLoading(false);
     }
   };
 
+  const handleSendOtp = async () => {
+    setResetMessage("");
+    const trimmedEmail = resetEmail.trim().toLowerCase();
+
+    if (!trimmedEmail) {
+      setResetMessage("Email is required to send OTP");
+      return;
+    }
+
+    if (!emailRegex.test(trimmedEmail)) {
+      setResetMessage("Please enter a valid email");
+      return;
+    }
+
+    setSendingOtp(true);
+    try {
+      const response = await requestPasswordOtp({ email: trimmedEmail });
+      const backendMessage =
+        response.data?.message || "OTP has been sent to your email";
+      const devOtp = response.data?.devOtp;
+      setResetMessage(
+        devOtp ? `${backendMessage} OTP: ${devOtp}` : backendMessage,
+      );
+    } catch (err) {
+      setResetMessage(err.response?.data?.message || "Failed to send OTP");
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const greetingHour = new Date().getHours();
+  const greeting =
+    greetingHour < 12
+      ? "Good Morning"
+      : greetingHour < 18
+        ? "Good Afternoon"
+        : "Good Evening";
+
+  const handleCardMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const rotateY = ((x - 50) / 50) * 6;
+    const rotateX = ((50 - y) / 50) * 5;
+
+    setCardTransform(
+      `perspective(1000px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg)`,
+    );
+    setCardGlow({ x, y });
+  };
+
+  const resetCardMotion = () => {
+    setCardTransform("perspective(1000px) rotateX(0deg) rotateY(0deg)");
+    setCardGlow({ x: 50, y: 25 });
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 via-white to-teal-50 relative overflow-hidden">
-      {/* Premium animated background with vibrant teal */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-96 -right-96 w-[800px] h-[800px] bg-gradient-to-br from-cyan-400/40 to-transparent rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-96 -left-96 w-[800px] h-[800px] bg-gradient-to-tr from-teal-400/40 to-transparent rounded-full blur-3xl"></div>
+    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_15%_20%,rgba(56,189,248,0.2),transparent_35%),radial-gradient(circle_at_85%_15%,rgba(16,185,129,0.16),transparent_35%),linear-gradient(135deg,#020617_0%,#0b1324_52%,#101827_100%)] px-4 py-14 sm:px-8">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.035)_1px,transparent_1px)] bg-[size:42px_42px] [mask-image:radial-gradient(circle_at_center,black_10%,transparent_85%)]" />
+
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="auth-orb auth-orb-one" />
+        <div className="auth-orb auth-orb-two" />
+        <div className="auth-orb auth-orb-three" />
       </div>
 
-      {/* Back button */}
       <button
         onClick={() => navigate("/")}
-        className="absolute top-6 left-6 z-20 flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors duration-300 group"
+        className="absolute left-6 top-6 z-20 inline-flex items-center gap-2 rounded-full border border-slate-500/80 bg-slate-900/70 px-4 py-2 text-sm font-medium text-slate-50 backdrop-blur-md transition-all duration-300 hover:-translate-x-0.5 hover:border-cyan-300/80 hover:text-cyan-100"
       >
-        <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-        </svg>
+        <ArrowLeft className="h-4 w-4" />
         Back to Home
       </button>
 
-      {/* Auth Card */}
-      <div className="relative z-10 w-full max-w-md mx-4">
-        <div className="bg-white/90 backdrop-blur-2xl p-8 md:p-10 rounded-3xl shadow-2xl border border-cyan-200/50 hover:border-cyan-300/60 transition-all duration-300">
-          {/* Logo & Icon */}
-          <div className="flex justify-center mb-8">
-            <div className="relative">
-              <div className="bg-gradient-to-br from-cyan-400 to-teal-500 p-5 rounded-2xl shadow-2xl shadow-cyan-500/50">
-                <Sparkles className="w-12 h-12 text-black" />
+      <div className="relative z-10 mx-auto w-full max-w-md pt-8 sm:pt-10">
+        <div
+          className="group relative overflow-hidden rounded-[28px] border border-slate-400/45 bg-slate-950/82 p-7 shadow-[0_30px_80px_rgba(8,47,73,0.55)] backdrop-blur-2xl transition-transform duration-300 sm:p-9"
+          onMouseMove={handleCardMouseMove}
+          onMouseLeave={resetCardMotion}
+          style={{
+            transform: cardTransform,
+            transformStyle: "preserve-3d",
+          }}
+        >
+          <div
+            className="pointer-events-none absolute -inset-24 opacity-50 blur-3xl transition-opacity duration-300 group-hover:opacity-75"
+            style={{
+              background: `radial-gradient(circle at ${cardGlow.x}% ${cardGlow.y}%, rgba(45,212,191,0.4), rgba(14,116,144,0.1) 38%, transparent 70%)`,
+            }}
+          />
+
+          <div className="relative z-10">
+            <div className="mb-7 flex justify-center">
+              <div className="rounded-2xl border border-cyan-200/40 bg-gradient-to-br from-cyan-300 to-emerald-300 p-4 shadow-[0_15px_40px_rgba(45,212,191,0.35)]">
+                <Sparkles className="h-9 w-9 text-slate-950" />
               </div>
             </div>
-          </div>
 
-          {/* Title */}
-          <h2 className="text-3xl font-bold mb-2 text-center bg-gradient-to-r from-slate-900 to-teal-700 bg-clip-text text-transparent">
-            {mode === "login" ? "Welcome Back" : "Create Account"}
-          </h2>
-          <p className="text-slate-600 text-center mb-8 text-sm">
-            {mode === "login" 
-              ? "Enter your credentials to access your dashboard" 
-              : "Sign up to start analyzing your data"}
-          </p>
-
-          {mode === "login" && (
-            <div className="flex bg-slate-100 backdrop-blur-md rounded-xl p-1 mb-6 border border-slate-300">
-              <button
-                type="button"
-                onClick={() => setLoginRole("user")}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                  loginRole === "user"
-                    ? "bg-gradient-to-r from-cyan-400 to-teal-500 text-black shadow-lg shadow-cyan-500/50"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-                disabled={loading}
-              >
-                Employee
-              </button>
-              <button
-                type="button"
-                onClick={() => setLoginRole("admin")}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                  loginRole === "admin"
-                    ? "bg-gradient-to-r from-cyan-400 to-teal-500 text-black shadow-lg shadow-cyan-500/50"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-                disabled={loading}
-              >
-                Admin
-              </button>
+            <div className="mb-6 space-y-2 text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100">
+                {greeting}
+              </p>
+              <h2 className="text-3xl font-extrabold text-slate-50">
+                Welcome Back
+              </h2>
+              <p className="text-sm text-slate-200">
+                Secure sign in for analytics dashboard access.
+              </p>
             </div>
-          )}
 
-          {/* Error Message */}
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-50 border border-red-300 text-red-800 px-4 py-3 rounded-xl mb-6 flex items-center gap-2 backdrop-blur-sm">
-              <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="text-sm">{error}</span>
-            </div>
-          )}
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {mode === "signup" && (
-              <div>
-                <label className="block text-slate-700 text-sm font-medium mb-2">
-                  Full Name
-                </label>
-                <input
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300 disabled:opacity-50 backdrop-blur-sm"
-                  placeholder="Enter your name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+            <div className="mb-6 rounded-2xl border border-slate-500/90 bg-slate-900/90 p-1">
+              <div className="grid grid-cols-2 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setLoginRole("user")}
+                  className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-300 ${
+                    loginRole === "user"
+                      ? "bg-slate-50 text-slate-950 ring-2 ring-cyan-300/90 shadow-[0_8px_20px_rgba(125,211,252,0.35)]"
+                      : "text-slate-300 hover:bg-slate-700/70 hover:text-slate-100"
+                  }`}
                   disabled={loading}
-                />
+                >
+                  Employee
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLoginRole("admin")}
+                  className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-300 ${
+                    loginRole === "admin"
+                      ? "bg-slate-50 text-slate-950 ring-2 ring-cyan-300/90 shadow-[0_8px_20px_rgba(125,211,252,0.35)]"
+                      : "text-slate-300 hover:bg-slate-700/70 hover:text-slate-100"
+                  }`}
+                  disabled={loading}
+                >
+                  Admin
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div className="mb-6 flex items-center gap-2 rounded-xl border border-rose-300/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+                <span className="h-2 w-2 rounded-full bg-rose-300" />
+                {error}
               </div>
             )}
 
-            <div>
-              <label className="block text-slate-700 text-sm font-medium mb-2">
-                Email Address
-              </label>
-              <input
-                className="auth-fixed-input w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300 disabled:opacity-50 backdrop-blur-sm"
-                placeholder="Enter your email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <label className="block text-slate-700 text-sm font-medium mb-2">
-                Password
-              </label>
-              <div className="relative">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label className={labelClass}>Email Address</label>
                 <input
-                  type={showPassword ? "text" : "password"}
-                  className="auth-fixed-input w-full px-4 py-3 pr-12 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300 disabled:opacity-50 backdrop-blur-sm"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  className={`auth-fixed-input ${primaryInputClass}`}
+                  placeholder="Enter your email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  disabled={loading}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
               </div>
-              <p className="text-slate-500 text-xs mt-2">Must be at least 6 characters</p>
-            </div>
 
-            {mode === "login" && (
+              <div>
+                <label className={labelClass}>Password</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    className={`auth-fixed-input ${passwordInputClass}`}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition-colors hover:text-cyan-200"
+                    disabled={loading}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                <p className="mt-2 text-xs font-medium text-slate-200">
+                  Must be at least 6 characters
+                </p>
+              </div>
+
               <div className="text-right">
                 <button
                   type="button"
@@ -291,87 +349,113 @@ const Auth = () => {
                     setShowReset(true);
                     setResetMessage("");
                   }}
-                  className="text-sm text-slate-600 hover:text-slate-900 transition-colors"
+                  className="text-sm font-semibold text-cyan-100 transition-colors hover:text-cyan-50"
                   disabled={loading}
                 >
                   Forgot password?
                 </button>
               </div>
-            )}
 
-            <button
-              className="w-full bg-gradient-to-r from-cyan-400 to-teal-500 text-black py-3.5 rounded-xl font-semibold hover:shadow-2xl hover:shadow-cyan-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
-              type="submit"
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Please wait...
-                </>
-              ) : (
-                <>
-                  {mode === "login" ? "Sign In" : "Create Account"}
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Toggle Mode */}
-          <div className="mt-8 text-center border-t border-slate-300 pt-6">
-            <p className="text-slate-600 text-sm">
-              {mode === "login" ? "Don't have an account?" : "Already have an account?"}
-            </p>
-            <button
-              onClick={toggle}
-              className="text-transparent bg-gradient-to-r from-cyan-400 to-teal-500 bg-clip-text font-semibold mt-1 disabled:opacity-50 hover:from-cyan-300 hover:to-teal-400 transition-all"
-              disabled={loading}
-            >
-              {mode === "login" ? "Sign up for free" : "Sign in instead"}
-            </button>
+              <button
+                className="relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-cyan-300 via-teal-300 to-emerald-300 py-3.5 font-semibold text-slate-950 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_15px_40px_rgba(45,212,191,0.35)] disabled:cursor-not-allowed disabled:opacity-50"
+                type="submit"
+                disabled={loading}
+              >
+                <span className="absolute inset-y-0 -left-8 w-8 -skew-x-12 bg-white/40 blur-sm transition-all duration-700 group-hover:left-[110%]" />
+                {loading ? (
+                  <>
+                    <svg
+                      className="h-5 w-5 animate-spin"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                    Please wait...
+                  </>
+                ) : (
+                  <>
+                    Sign In
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
+            </form>
           </div>
         </div>
 
-        {/* Additional Info */}
-        <p className="text-center text-slate-500 text-xs mt-8">
-          By continuing, you agree to our Terms of Service and Privacy Policy
+        <p className="mt-7 text-center text-xs text-slate-200/80">
+          By continuing, you agree to our Terms of Service and Privacy Policy.
         </p>
       </div>
 
       {showReset && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-cyan-400/25 bg-slate-900/90 p-6 text-slate-100 shadow-[0_25px_80px_rgba(8,47,73,0.55)] animate-[authFadeIn_0.25s_ease-out]">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">
+              <h3 className="text-lg font-semibold text-cyan-100">
                 Reset Password
               </h3>
               <button
                 type="button"
-                className="text-slate-400 hover:text-slate-600"
+                className="rounded-md p-1 text-slate-400 transition-colors hover:text-slate-100"
                 onClick={() => setShowReset(false)}
               >
                 <X size={20} />
               </button>
             </div>
 
-            <p className="mt-2 text-sm text-slate-500">
-              Enter your email and a new password.
+            <p className="mt-2 text-sm text-slate-300">
+              Reset using old password or OTP sent to email.
             </p>
+
+            <div className="mt-4 flex rounded-xl border border-slate-700 bg-slate-800/70 p-1">
+              <button
+                type="button"
+                className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all ${
+                  resetMethod === "otp"
+                    ? "border border-cyan-300/60 bg-cyan-500/15 text-cyan-100"
+                    : "text-slate-300 hover:text-white"
+                }`}
+                onClick={() => setResetMethod("otp")}
+                disabled={resetLoading || sendingOtp}
+              >
+                Email OTP
+              </button>
+              <button
+                type="button"
+                className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all ${
+                  resetMethod === "oldPassword"
+                    ? "border border-cyan-300/60 bg-cyan-500/15 text-cyan-100"
+                    : "text-slate-300 hover:text-white"
+                }`}
+                onClick={() => setResetMethod("oldPassword")}
+                disabled={resetLoading || sendingOtp}
+              >
+                Old Password
+              </button>
+            </div>
 
             <form className="mt-4 space-y-4" onSubmit={handleResetPassword}>
               <div>
-                <label className="block text-slate-700 text-sm font-medium mb-2">
+                <label className="mb-2 block text-sm font-semibold text-slate-200">
                   Email Address
                 </label>
                 <input
                   type="email"
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300 disabled:opacity-50"
+                  className="w-full rounded-xl border border-slate-500 bg-slate-800 px-4 py-3 text-slate-100 placeholder-slate-400 transition-all duration-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50"
                   placeholder="Enter your email"
                   value={resetEmail}
                   onChange={(e) => setResetEmail(e.target.value)}
@@ -379,39 +463,97 @@ const Auth = () => {
                 />
               </div>
 
+              {resetMethod === "otp" ? (
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="block text-sm font-semibold text-slate-200">
+                      OTP
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      className="text-xs font-semibold text-cyan-300 transition-colors hover:text-cyan-100 disabled:opacity-50"
+                      disabled={resetLoading || sendingOtp}
+                    >
+                      {sendingOtp ? "Sending..." : "Send OTP"}
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    className="w-full rounded-xl border border-slate-500 bg-slate-800 px-4 py-3 text-slate-100 placeholder-slate-400 transition-all duration-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50"
+                    placeholder="Enter 6-digit OTP"
+                    value={resetOtp}
+                    onChange={(e) => setResetOtp(e.target.value)}
+                    disabled={resetLoading}
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-200">
+                    Old Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showResetOldPassword ? "text" : "password"}
+                      className="w-full rounded-xl border border-slate-500 bg-slate-800 px-4 py-3 pr-12 text-slate-100 placeholder-slate-400 transition-all duration-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50"
+                      placeholder="Enter old password"
+                      value={resetOldPassword}
+                      onChange={(e) => setResetOldPassword(e.target.value)}
+                      disabled={resetLoading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResetOldPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition-colors hover:text-slate-100"
+                      disabled={resetLoading}
+                    >
+                      {showResetOldPassword ? (
+                        <EyeOff size={18} />
+                      ) : (
+                        <Eye size={18} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div>
-                <label className="block text-slate-700 text-sm font-medium mb-2">
+                <label className="mb-2 block text-sm font-semibold text-slate-200">
                   New Password
                 </label>
                 <div className="relative">
                   <input
                     type={showResetPassword ? "text" : "password"}
-                    className="w-full px-4 py-3 pr-12 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300 disabled:opacity-50"
+                    className="w-full rounded-xl border border-slate-500 bg-slate-800 px-4 py-3 pr-12 text-slate-100 placeholder-slate-400 transition-all duration-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50"
                     placeholder="Enter a new password"
-                    value={resetPassword}
-                    onChange={(e) => setResetPassword(e.target.value)}
+                    value={resetNewPassword}
+                    onChange={(e) => setResetNewPassword(e.target.value)}
                     disabled={resetLoading}
                   />
                   <button
                     type="button"
                     onClick={() => setShowResetPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition-colors hover:text-slate-100"
                     disabled={resetLoading}
                   >
-                    {showResetPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showResetPassword ? (
+                      <EyeOff size={18} />
+                    ) : (
+                      <Eye size={18} />
+                    )}
                   </button>
                 </div>
               </div>
 
               {resetMessage && (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700">
+                <div className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-100">
                   {resetMessage}
                 </div>
               )}
 
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-cyan-400 to-teal-500 text-black py-3 rounded-xl font-semibold hover:shadow-2xl hover:shadow-cyan-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full rounded-xl bg-gradient-to-r from-cyan-300 to-emerald-300 py-3 font-semibold text-slate-950 transition-all duration-300 hover:shadow-[0_14px_34px_rgba(45,212,191,0.35)] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={resetLoading}
               >
                 {resetLoading ? "Resetting..." : "Reset Password"}
@@ -420,6 +562,62 @@ const Auth = () => {
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes authFloat {
+          0%,
+          100% {
+            transform: translate3d(0, 0, 0);
+          }
+          50% {
+            transform: translate3d(0, -22px, 0);
+          }
+        }
+
+        @keyframes authFadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px) scale(0.985);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        .auth-orb {
+          position: absolute;
+          border-radius: 9999px;
+          filter: blur(44px);
+          animation: authFloat 10s ease-in-out infinite;
+        }
+
+        .auth-orb-one {
+          top: -90px;
+          right: -70px;
+          height: 280px;
+          width: 280px;
+          background: rgba(6, 182, 212, 0.28);
+        }
+
+        .auth-orb-two {
+          bottom: -90px;
+          left: -60px;
+          height: 300px;
+          width: 300px;
+          background: rgba(16, 185, 129, 0.24);
+          animation-delay: 1.4s;
+        }
+
+        .auth-orb-three {
+          top: 35%;
+          right: 18%;
+          height: 180px;
+          width: 180px;
+          background: rgba(45, 212, 191, 0.18);
+          animation-delay: 0.8s;
+        }
+      `}</style>
     </div>
   );
 };

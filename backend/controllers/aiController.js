@@ -1,10 +1,16 @@
 const { sendToAI } = require("../Services/aiService");
+const { sendToAskAgent } = require("../Services/askAgentService");
+const {
+  buildCopilotUiPayload,
+  normalizeAnalyticsCopilotPayload,
+} = require("../Services/ai/analyticsCopilotGateway");
 
 const SUPPORTED_INTENTS = new Set([
   "anomaly",
   "forecast",
   "recommendation",
   "nlq",
+  "analytics_copilot",
 ]);
 
 const buildMockAnalyticsData = (metric = "revenue") => {
@@ -39,7 +45,7 @@ const normalizePayload = (intent, payload = {}, user = {}) => {
     intent,
     metric,
     data,
-    filters: payload.filters || {},
+    filters: payload.context?.filters || payload.filters || {},
     context: {
       source: "node-ai-gateway",
       userId: user.id || null,
@@ -64,10 +70,45 @@ exports.getAIInsight = async (req, res) => {
       return res.status(400).json({ message: `Unsupported intent: ${intent}` });
     }
 
-    const normalizedPayload = normalizePayload(intent, payload, req.user || {});
-    const aiResponse = await sendToAI(normalizedPayload);
+    if (intent === "analytics_copilot") {
+      const normalizedPayload = normalizeAnalyticsCopilotPayload(
+        payload,
+        req.user || {},
+        "insight-route",
+      );
 
-    return res.json(aiResponse);
+      if (!normalizedPayload.question) {
+        return res.status(400).json({ message: "Question is required" });
+      }
+
+      const askAgentResponse = await sendToAskAgent(normalizedPayload);
+
+      return res.json({
+        intent: "analytics_copilot",
+        payload: buildCopilotUiPayload(askAgentResponse),
+        meta: {
+          provider: askAgentResponse?.meta?.provider || "python-ask-agent",
+          queryExecuted: askAgentResponse?.query_executed || null,
+        },
+      });
+    }
+
+    const normalizedPayload = normalizePayload(intent, payload, req.user || {});
+    const { result: aiResponse, cached } = await sendToAI(normalizedPayload);
+
+    if (aiResponse && typeof aiResponse === "object" && !Array.isArray(aiResponse)) {
+      return res.json({
+        ...aiResponse,
+        cached,
+      });
+    }
+
+    return res.json({
+      payload: {
+        text: typeof aiResponse === "string" ? aiResponse : "AI response available",
+      },
+      cached,
+    });
   } catch (error) {
     console.error("[aiController] Failed to fetch AI insight", {
       message: error.message,

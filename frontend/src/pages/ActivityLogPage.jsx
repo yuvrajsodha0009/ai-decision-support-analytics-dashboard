@@ -21,6 +21,7 @@ const ActivityLogPage = () => {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [avatarLoadErrors, setAvatarLoadErrors] = useState({});
 
   const getInitials = (nameOrEmail) => {
     const val = (nameOrEmail || "").trim();
@@ -34,8 +35,19 @@ const ActivityLogPage = () => {
 
   const getAvatarUrl = (avatar) => {
     if (!avatar) return "";
-    if (avatar.startsWith("http")) return avatar;
+    if (avatar.startsWith("http://") || avatar.startsWith("https://"))
+      return avatar;
+    if (avatar.startsWith("//")) return `http:${avatar}`;
     return `http://localhost:5000${avatar}`;
+  };
+
+  const getAvatarKey = (log, index) =>
+    String(log?._id || `${log?.user || "unknown"}-${index}`);
+
+  const shouldShowAvatar = (log, index) => {
+    const avatarUrl = getAvatarUrl(log?.avatar);
+    const avatarKey = getAvatarKey(log, index);
+    return Boolean(avatarUrl && !avatarLoadErrors[avatarKey]);
   };
 
   const formatRelativeTime = (value) => {
@@ -66,9 +78,7 @@ const ActivityLogPage = () => {
       });
       setLogs(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      setError(
-        err.response?.data?.message || "Failed to load activity logs"
-      );
+      setError(err.response?.data?.message || "Failed to load activity logs");
       setLogs([]);
     } finally {
       setLoading(false);
@@ -83,12 +93,14 @@ const ActivityLogPage = () => {
     let filtered = logs;
 
     if (filterType !== "all") {
-      filtered = filtered.filter((log) => (log.status || "success") === filterType);
+      filtered = filtered.filter(
+        (log) => (log.status || "success") === filterType,
+      );
     }
 
     if (roleFilter !== "all") {
       filtered = filtered.filter(
-        (log) => normalizeRole(log.userRole) === normalizeRole(roleFilter)
+        (log) => normalizeRole(log.userRole) === normalizeRole(roleFilter),
       );
     }
 
@@ -113,7 +125,7 @@ const ActivityLogPage = () => {
       filtered = filtered.filter(
         (log) =>
           (log.action || "").toLowerCase().includes(term) ||
-          (log.details || "").toLowerCase().includes(term)
+          (log.details || "").toLowerCase().includes(term),
       );
     }
 
@@ -154,7 +166,7 @@ const ActivityLogPage = () => {
         await fetchLogs();
       } catch (err) {
         setError(
-          err.response?.data?.message || "Failed to clear activity logs"
+          err.response?.data?.message || "Failed to clear activity logs",
         );
       } finally {
         setLoading(false);
@@ -320,11 +332,18 @@ const ActivityLogPage = () => {
                     <td className="px-6 py-4 text-[var(--text-main)]">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 overflow-hidden rounded-full border border-[var(--border-soft)] bg-[var(--bg-surface)] flex items-center justify-center text-sm font-semibold text-[var(--text-main)]">
-                          {getAvatarUrl(log.avatar) ? (
+                          {shouldShowAvatar(log, index) ? (
                             <img
                               src={getAvatarUrl(log.avatar)}
                               alt={log.user || "User"}
                               className="h-full w-full object-cover"
+                              onError={() => {
+                                const avatarKey = getAvatarKey(log, index);
+                                setAvatarLoadErrors((prev) => ({
+                                  ...prev,
+                                  [avatarKey]: true,
+                                }));
+                              }}
                             />
                           ) : (
                             getInitials(log.user || log.userRole || "U")
@@ -336,7 +355,11 @@ const ActivityLogPage = () => {
                           </div>
                           {log.details?.includes("@") && (
                             <div className="text-xs text-slate-500 dark:text-slate-300 truncate max-w-[200px]">
-                              {log.details.match(/([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/)?.[1]}
+                              {
+                                log.details.match(
+                                  /([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/,
+                                )?.[1]
+                              }
                             </div>
                           )}
                         </div>
@@ -355,18 +378,18 @@ const ActivityLogPage = () => {
                       {(() => {
                         const status = log.status || "success";
                         return (
-                      <span
-                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
-                          status === "success"
-                            ? "bg-green-100 text-green-700"
-                            : status === "warning"
-                            ? "bg-orange-100 text-orange-700"
-                            : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        <CheckCircle2 size={14} />
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                      </span>
+                          <span
+                            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
+                              status === "success"
+                                ? "bg-green-100 text-green-700"
+                                : status === "warning"
+                                  ? "bg-orange-100 text-orange-700"
+                                  : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            <CheckCircle2 size={14} />
+                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                          </span>
                         );
                       })()}
                     </td>
@@ -393,30 +416,40 @@ const ActivityLogPage = () => {
       {/* Summary Stats */}
       <div className="grid md:grid-cols-4 gap-6 mt-8">
         <div className="bg-[var(--bg-surface)] text-[var(--text-main)] p-6 rounded-xl shadow-lg border border-[var(--border-soft)] animate-fadeIn stagger-3">
-          <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">Total Activities</p>
-          <p className="text-3xl font-bold text-[var(--text-main)]">{logs.length}</p>
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">
+            Total Activities
+          </p>
+          <p className="text-3xl font-bold text-[var(--text-main)]">
+            {logs.length}
+          </p>
         </div>
         <div className="bg-[var(--bg-surface)] text-[var(--text-main)] p-6 rounded-xl shadow-lg border border-[var(--border-soft)] animate-fadeIn stagger-4">
-          <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">Success Rate</p>
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">
+            Success Rate
+          </p>
           <p className="text-3xl font-bold text-green-600">
             {logs.length
               ? Math.round(
                   (logs.filter((l) => l.status === "success").length /
                     logs.length) *
-                    100
+                    100,
                 )
               : 0}
             %
           </p>
         </div>
         <div className="bg-[var(--bg-surface)] text-[var(--text-main)] p-6 rounded-xl shadow-lg border border-[var(--border-soft)] animate-fadeIn stagger-5">
-          <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">Warnings</p>
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">
+            Warnings
+          </p>
           <p className="text-3xl font-bold text-orange-600">
             {logs.filter((l) => l.status === "warning").length}
           </p>
         </div>
         <div className="bg-[var(--bg-surface)] text-[var(--text-main)] p-6 rounded-xl shadow-lg border border-[var(--border-soft)] animate-fadeIn stagger-1">
-          <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">Errors</p>
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">
+            Errors
+          </p>
           <p className="text-3xl font-bold text-red-600">
             {logs.filter((l) => l.status === "error").length}
           </p>

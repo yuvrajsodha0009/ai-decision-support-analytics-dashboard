@@ -29,15 +29,15 @@ def _metric_candidate_keys(metric):
             ]
         )
 
-    fallback_keys = [
-        "currentValue",
-        "value",
-        "currentRevenue",
-        "totalRevenue",
-        "currentOrders",
-        "totalOrders",
-        "currentAov",
-    ]
+    metric_lower = normalized_metric.lower()
+    if metric_lower == "revenue":
+        fallback_keys = ["currentRevenue", "totalRevenue", "currentValue", "value"]
+    elif metric_lower == "orders":
+        fallback_keys = ["currentOrders", "totalOrders", "orders", "value"]
+    elif metric_lower == "aov":
+        fallback_keys = ["currentAov", "aov", "value"]
+    else:
+        fallback_keys = ["currentValue", "value"]
 
     ordered_keys = []
     for key in [*derived_keys, *fallback_keys]:

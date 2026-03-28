@@ -1,327 +1,146 @@
 import {
-  BarChart3,
   Bot,
+  GripVertical,
   LoaderCircle,
+  MessageCircle,
   Pin,
+  PinOff,
+  RefreshCw,
   Send,
   Sparkles,
-  Table2,
   X,
 } from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+
+import { useAskAgent } from "../../hooks/useAskAgent";
+import CopilotResponseBlocks from "./CopilotResponseBlocks";
+import { EmptyState, ContextStrip, TypingIndicator } from "./CopilotDrawerPanels";
+import { getContextHealth, getContextMeta } from "./copilotDrawerMeta";
 import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-} from "recharts";
+  buildConversationMemory,
+  buildRequestPayload,
+  normalizeDrawerContext,
+} from "./copilotUi";
 
-import { useAI } from "../../hooks/useAI";
+const DRAWER_MIN_WIDTH = 460;
+const DRAWER_MAX_WIDTH = 760;
+const RESIZE_BREAKPOINT = 1280;
+const MIN_THINKING_MS = 1800;
 
-const CONTEXT_META = {
-  revenue_chart: {
-    label: "Revenue chart",
-    accent: "text-cyan-200",
-    suggestions: [
-      "Why did revenue spike yesterday?",
-      "What changed in the revenue trend this week?",
-      "Summarize revenue momentum for leadership.",
-    ],
-  },
-  orders_chart: {
-    label: "Orders chart",
-    accent: "text-emerald-200",
-    suggestions: [
-      "Which period drove the most orders?",
-      "Show conversion trend for mobile users.",
-      "What should I inspect in the orders trend next?",
-    ],
-  },
-  category_chart: {
-    label: "Category chart",
-    accent: "text-violet-200",
-    suggestions: [
-      "Which category drives most orders?",
-      "Which category needs attention right now?",
-      "Compare category leaders and laggards.",
-    ],
-  },
-};
+const THINKING_STEPS = [
+  "Analyzing your question...",
+  "Understanding trends...",
+  "Generating insights...",
+];
 
 const createMessageId = (prefix) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const createRequestId = () =>
-  `nlq-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  `copilot-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 const trimQuestion = (question) => {
   if (!question) return "Pinned AI insight";
   return question.length > 64 ? `${question.slice(0, 61)}...` : question;
 };
 
-const normalizeDrawerContext = (context = {}) => {
-  const activeContext = context.activeContext || "revenue_chart";
-
-  return {
-    activeContext,
-    label: CONTEXT_META[activeContext]?.label || "Dashboard context",
-    filters: context.filters || {},
-    data: Array.isArray(context.data) ? context.data : [],
-    summary: context.summary || {},
-    topCategories: context.topCategories || [],
-    topRegions: context.topRegions || [],
-    compareMode: context.filters?.compareMode || false,
-  };
+const getFocusableElements = (container) => {
+  if (!container) return [];
+  return Array.from(
+    container.querySelectorAll(
+      'button:not([disabled]), textarea:not([disabled]), [href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => !element.hasAttribute("aria-hidden"));
 };
-
-const buildRequestPayload = (question, context) => {
-  const normalized = normalizeDrawerContext(context);
-
-  return {
-    question,
-    data: normalized.data.slice(0, 48),
-    context: {
-      activeContext: normalized.activeContext,
-      contextLabel: normalized.label,
-      filters: normalized.filters,
-      summary: normalized.summary,
-      topCategories: normalized.topCategories,
-      topRegions: normalized.topRegions,
-      compareMode: normalized.compareMode,
-    },
-  };
-};
-
-const SuggestionsPanel = memo(function SuggestionsPanel({
-  contextKey,
-  onPickSuggestion,
-}) {
-  const suggestions =
-    CONTEXT_META[contextKey]?.suggestions || CONTEXT_META.revenue_chart.suggestions;
-
-  return (
-    <section className="ai-copilot-card">
-      <div className="mb-3 flex items-center gap-2">
-        <Sparkles size={15} className="text-cyan-200" />
-        <h4 className="text-sm font-semibold text-slate-100">Try asking</h4>
-      </div>
-
-      <div className="space-y-2">
-        {suggestions.map((suggestion) => (
-          <button
-            key={suggestion}
-            type="button"
-            onClick={() => onPickSuggestion(suggestion)}
-            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-slate-300 transition-colors hover:border-cyan-400/30 hover:bg-cyan-400/10 hover:text-cyan-100"
-          >
-            {suggestion}
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-});
-
-const SeriesPreview = memo(function SeriesPreview({ series = [] }) {
-  if (!Array.isArray(series) || series.length === 0) return null;
-
-  return (
-    <section className="ai-copilot-card">
-      <div className="mb-3 flex items-center gap-2">
-        <BarChart3 size={15} className="text-cyan-200" />
-        <h4 className="text-sm font-semibold text-slate-100">Mini trend</h4>
-      </div>
-
-      <div className="h-40">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={series}>
-            <defs>
-              <linearGradient id="aiCopilotSeries" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.45} />
-                <stop offset="100%" stopColor="#22d3ee" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} stroke="#334155" strokeOpacity={0.35} />
-            <XAxis
-              dataKey="period"
-              stroke="#94a3b8"
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <Tooltip
-              cursor={{ stroke: "rgba(148, 163, 184, 0.25)", strokeWidth: 1 }}
-              contentStyle={{
-                background: "#020617",
-                border: "1px solid rgba(148, 163, 184, 0.2)",
-                borderRadius: 12,
-              }}
-            />
-            <Area
-              dataKey="value"
-              type="monotone"
-              stroke="#22d3ee"
-              strokeWidth={2}
-              fill="url(#aiCopilotSeries)"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </section>
-  );
-});
-
-const DataTablePreview = memo(function DataTablePreview({ table }) {
-  if (!table?.columns?.length || !table?.rows?.length) return null;
-
-  return (
-    <section className="ai-copilot-card overflow-hidden">
-      <div className="mb-3 flex items-center gap-2">
-        <Table2 size={15} className="text-cyan-200" />
-        <h4 className="text-sm font-semibold text-slate-100">Table preview</h4>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[280px] text-left text-sm text-slate-300">
-          <thead>
-            <tr className="border-b border-white/10 text-xs uppercase tracking-[0.16em] text-slate-500">
-              {table.columns.map((column) => (
-                <th key={column} className="px-3 py-2 font-medium">
-                  {column}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {table.rows.map((row, index) => {
-              const cells = Array.isArray(row)
-                ? row
-                : table.columns.map((column) => row?.[column] ?? "");
-
-              return (
-                <tr
-                  key={`${index}-${JSON.stringify(cells)}`}
-                  className="border-b border-white/5"
-                >
-                  {cells.map((value, cellIndex) => (
-                  <td key={`${index}-${cellIndex}`} className="px-3 py-2">
-                    {value}
-                  </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-});
-
-const RichAIResponse = memo(function RichAIResponse({ response }) {
-  const payload = response?.payload || {};
-  const highlights = Array.isArray(payload.highlights) ? payload.highlights : [];
-  const metricCards = Array.isArray(payload.metrics) ? payload.metrics : [];
-
-  return (
-    <div className="space-y-3">
-      {payload.text && (
-        <section className="ai-copilot-card">
-          <p className="text-sm leading-6 text-slate-200">{payload.text}</p>
-        </section>
-      )}
-
-      {highlights.length > 0 && (
-        <section className="ai-copilot-card">
-          <div className="mb-3 flex items-center gap-2">
-            <Sparkles size={15} className="text-cyan-200" />
-            <h4 className="text-sm font-semibold text-slate-100">Highlights</h4>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {highlights.map((highlight) => (
-              <span
-                key={highlight}
-                className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-xs text-cyan-100"
-              >
-                {highlight}
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {metricCards.length > 0 && (
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {metricCards.map((metric) => (
-            <article key={metric.label} className="ai-copilot-card">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">{metric.label}</p>
-              <p className="mt-2 text-lg font-semibold text-white">{metric.value}</p>
-              {metric.caption && <p className="mt-1 text-xs text-slate-400">{metric.caption}</p>}
-            </article>
-          ))}
-        </section>
-      )}
-
-      {Array.isArray(payload.items) && payload.items.length > 0 && (
-        <section className="space-y-2">
-          {payload.items.map((item) => (
-            <article
-              key={item.id || item.title || item.label || item.period}
-              className="ai-copilot-card"
-            >
-              <p className="text-sm font-semibold text-slate-100">
-                {item.title || item.label || item.period || "Insight"}
-              </p>
-              <p className="mt-1 text-sm leading-6 text-slate-300">
-                {item.detail || item.reason}
-              </p>
-            </article>
-          ))}
-        </section>
-      )}
-
-      <SeriesPreview series={payload.series} />
-      <DataTablePreview table={payload.table} />
-    </div>
-  );
-});
-
-const TypingIndicator = memo(function TypingIndicator() {
-  return (
-    <div className="max-w-[92%] rounded-[24px] rounded-bl-md border border-white/10 bg-slate-900/90 px-4 py-3">
-      <div className="mb-2 flex items-center gap-2 text-sm text-cyan-100">
-        <LoaderCircle size={15} className="animate-spin" />
-        AI analyzing data...
-      </div>
-      <div className="flex items-center gap-1">
-        <span className="ai-copilot-dot" />
-        <span className="ai-copilot-dot ai-copilot-dot-delay-1" />
-        <span className="ai-copilot-dot ai-copilot-dot-delay-2" />
-      </div>
-    </div>
-  );
-});
 
 const AskAIDrawer = memo(function AskAIDrawer({
   isOpen = false,
   onClose,
   context = {},
   onPinInsight,
+  pinnedInsightIds = new Set(),
 }) {
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState([]);
   const [submittedRequest, setSubmittedRequest] = useState(null);
   const [resolvedRequestId, setResolvedRequestId] = useState("");
-  const textareaRef = useRef(null);
+  const [thinkingStepIndex, setThinkingStepIndex] = useState(0);
+  const [hasPendingRender, setHasPendingRender] = useState(false);
+  const [isContextExpanded, setIsContextExpanded] = useState(false);
+  const [drawerWidth, setDrawerWidth] = useState(null);
+  const [canResize, setCanResize] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [scrollState, setScrollState] = useState({
+    canScrollUp: false,
+    canScrollDown: false,
+  });
 
-  const normalizedContext = useMemo(() => normalizeDrawerContext(context), [context]);
+  const textareaRef = useRef(null);
+  const responseTimerRef = useRef(null);
+  const messagesEndRef = useRef(null);
+  const drawerRef = useRef(null);
+  const scrollRef = useRef(null);
+  const resizeStateRef = useRef(null);
+  const previousFocusRef = useRef(null);
+
+  const normalizedContext = useMemo(
+    () => normalizeDrawerContext(context),
+    [context],
+  );
+  const contextMeta = getContextMeta(normalizedContext.activeContext);
   const requestPayload = submittedRequest?.payload || null;
-  const { data, isLoading, error } = useAI("nlq", requestPayload);
+  const { data, isLoading, error } = useAskAgent(requestPayload);
+
+  const nextSuggestion =
+    contextMeta.suggestions[messages.length % contextMeta.suggestions.length] ||
+    contextMeta.suggestions[0];
+
+  const showTypingState =
+    Boolean(submittedRequest) &&
+    (isLoading || hasPendingRender) &&
+    !messages.some(
+      (message) =>
+        message.requestId === submittedRequest.id &&
+        message.role === "assistant",
+    );
+
+  useEffect(() => {
+    const syncResizeAvailability = () => {
+      const viewportWidth = window.innerWidth;
+      const allowResize = viewportWidth >= RESIZE_BREAKPOINT;
+      setCanResize(allowResize);
+
+      if (allowResize) {
+        setDrawerWidth((previous) => {
+          const fallback = clamp(
+            Math.round(viewportWidth * 0.36),
+            DRAWER_MIN_WIDTH,
+            DRAWER_MAX_WIDTH,
+          );
+          return clamp(previous || fallback, DRAWER_MIN_WIDTH, DRAWER_MAX_WIDTH);
+        });
+      } else {
+        setDrawerWidth(null);
+        setIsResizing(false);
+        resizeStateRef.current = null;
+      }
+    };
+
+    syncResizeAvailability();
+    window.addEventListener("resize", syncResizeAvailability);
+
+    return () => {
+      window.removeEventListener("resize", syncResizeAvailability);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return undefined;
+
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     const timeoutId = window.setTimeout(() => {
       textareaRef.current?.focus();
@@ -330,35 +149,57 @@ const AskAIDrawer = memo(function AskAIDrawer({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    const handleEscape = (event) => {
-      if (event.key === "Escape") onClose?.();
-    };
-
-    window.addEventListener("keydown", handleEscape);
-
     return () => {
       document.body.style.overflow = previousOverflow;
       window.clearTimeout(timeoutId);
-      window.removeEventListener("keydown", handleEscape);
+      previousFocusRef.current?.focus?.();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) return;
+    setHasPendingRender(false);
+    setIsContextExpanded(false);
+    setScrollState({
+      canScrollUp: false,
+      canScrollDown: false,
+    });
+  }, [isOpen]);
 
   useEffect(() => {
     if (!submittedRequest || isLoading || !data) return;
     if (resolvedRequestId === submittedRequest.id) return;
 
-    setMessages((previous) => [
-      ...previous,
-      {
-        id: createMessageId("assistant"),
-        role: "assistant",
-        question: submittedRequest.question,
-        response: data,
-        requestPayload: submittedRequest.payload,
-        requestId: submittedRequest.id,
-      },
-    ]);
-    setResolvedRequestId(submittedRequest.id);
+    if (responseTimerRef.current) {
+      window.clearTimeout(responseTimerRef.current);
+    }
+
+    const elapsed = Date.now() - (submittedRequest.startedAt || Date.now());
+    const delayMs = Math.max(0, MIN_THINKING_MS - elapsed);
+
+    responseTimerRef.current = window.setTimeout(() => {
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: createMessageId("assistant"),
+          role: "assistant",
+          question: submittedRequest.question,
+          response: data,
+          requestPayload: submittedRequest.payload,
+          requestId: submittedRequest.id,
+        },
+      ]);
+      setResolvedRequestId(submittedRequest.id);
+      setHasPendingRender(false);
+      responseTimerRef.current = null;
+    }, delayMs);
+
+    return () => {
+      if (responseTimerRef.current) {
+        window.clearTimeout(responseTimerRef.current);
+        responseTimerRef.current = null;
+      }
+    };
   }, [data, isLoading, resolvedRequestId, submittedRequest]);
 
   useEffect(() => {
@@ -367,31 +208,179 @@ const AskAIDrawer = memo(function AskAIDrawer({
     const errorId = `${submittedRequest.id}-error`;
     if (resolvedRequestId === errorId) return;
 
-    setMessages((previous) => [
-      ...previous,
-      {
-        id: createMessageId("assistant-error"),
-        role: "assistant",
-        question: submittedRequest.question,
-        response: {
-          payload: {
-            text: error,
+    if (responseTimerRef.current) {
+      window.clearTimeout(responseTimerRef.current);
+    }
+
+    const elapsed = Date.now() - (submittedRequest.startedAt || Date.now());
+    const delayMs = Math.max(0, MIN_THINKING_MS - elapsed);
+
+    responseTimerRef.current = window.setTimeout(() => {
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: createMessageId("assistant-error"),
+          role: "assistant",
+          question: submittedRequest.question,
+          response: {
+            payload: {
+              text: error,
+              answerType: "text",
+            },
           },
+          requestPayload: submittedRequest.payload,
+          requestId: errorId,
+          isError: true,
         },
-        requestPayload: submittedRequest.payload,
-        requestId: errorId,
-        isError: true,
-      },
-    ]);
-    setResolvedRequestId(errorId);
+      ]);
+      setResolvedRequestId(errorId);
+      setHasPendingRender(false);
+      responseTimerRef.current = null;
+    }, delayMs);
+
+    return () => {
+      if (responseTimerRef.current) {
+        window.clearTimeout(responseTimerRef.current);
+        responseTimerRef.current = null;
+      }
+    };
   }, [error, isLoading, resolvedRequestId, submittedRequest]);
 
+  useEffect(() => {
+    if (!showTypingState) {
+      setThinkingStepIndex(0);
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setThinkingStepIndex(
+        (previous) => (previous + 1) % THINKING_STEPS.length,
+      );
+    }, 900);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [showTypingState]);
+
+  useEffect(() => {
+    return () => {
+      if (responseTimerRef.current) {
+        window.clearTimeout(responseTimerRef.current);
+        responseTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const timeoutId = window.setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
+    }, 40);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isOpen, messages, showTypingState]);
+
+  useEffect(() => {
+    const node = textareaRef.current;
+    if (!node) return;
+
+    node.style.height = "0px";
+    node.style.height = `${Math.min(node.scrollHeight, 180)}px`;
+  }, [draft, isOpen]);
+
+  useEffect(() => {
+    if (!isResizing || !canResize) return undefined;
+
+    const handlePointerMove = (event) => {
+      const state = resizeStateRef.current;
+      if (!state) return;
+
+      const nextWidth = clamp(
+        state.startWidth + (state.startX - event.clientX),
+        DRAWER_MIN_WIDTH,
+        Math.min(DRAWER_MAX_WIDTH, window.innerWidth - 36),
+      );
+
+      setDrawerWidth(nextWidth);
+    };
+
+    const handlePointerUp = () => {
+      setIsResizing(false);
+      resizeStateRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [canResize, isResizing]);
+
+  const syncScrollState = () => {
+    const node = scrollRef.current;
+    if (!node) return;
+
+    const canScrollUp = node.scrollTop > 8;
+    const canScrollDown = node.scrollTop + node.clientHeight < node.scrollHeight - 8;
+
+    setScrollState((previous) =>
+      previous.canScrollUp === canScrollUp &&
+      previous.canScrollDown === canScrollDown
+        ? previous
+        : { canScrollUp, canScrollDown },
+    );
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const timeoutId = window.setTimeout(syncScrollState, 60);
+    return () => window.clearTimeout(timeoutId);
+  }, [isOpen, messages, showTypingState]);
+
+  const clearPendingResponse = () => {
+    if (responseTimerRef.current) {
+      window.clearTimeout(responseTimerRef.current);
+      responseTimerRef.current = null;
+    }
+  };
+
+  const resetConversation = () => {
+    clearPendingResponse();
+    setMessages([]);
+    setDraft("");
+    setSubmittedRequest(null);
+    setResolvedRequestId("");
+    setHasPendingRender(false);
+    textareaRef.current?.focus();
+  };
+
   const submitQuestion = (questionText) => {
+    if (isLoading || hasPendingRender) return;
+
     const trimmed = questionText.trim();
     if (!trimmed) return;
 
     const requestId = createRequestId();
-    const payload = buildRequestPayload(trimmed, normalizedContext);
+    const payload = buildRequestPayload(
+      trimmed,
+      normalizedContext,
+      buildConversationMemory(messages),
+    );
 
     setMessages((previous) => [
       ...previous,
@@ -406,7 +395,9 @@ const AskAIDrawer = memo(function AskAIDrawer({
       id: requestId,
       question: trimmed,
       payload,
+      startedAt: Date.now(),
     });
+    setHasPendingRender(true);
     setResolvedRequestId("");
     setDraft("");
   };
@@ -420,7 +411,10 @@ const AskAIDrawer = memo(function AskAIDrawer({
     setDraft(suggestion);
     window.requestAnimationFrame(() => {
       textareaRef.current?.focus();
-      textareaRef.current?.setSelectionRange(suggestion.length, suggestion.length);
+      textareaRef.current?.setSelectionRange(
+        suggestion.length,
+        suggestion.length,
+      );
     });
   };
 
@@ -431,13 +425,51 @@ const AskAIDrawer = memo(function AskAIDrawer({
     }
   };
 
-  const showTypingState =
-    Boolean(submittedRequest) &&
-    isLoading &&
-    !messages.some((message) => message.requestId === submittedRequest.id);
+  const handleFollowUp = (suggestion) => {
+    submitQuestion(suggestion);
+  };
+
+  const handleDrawerKeyDown = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose?.();
+      return;
+    }
+
+    if (event.key !== "Tab") return;
+
+    const focusable = getFocusableElements(drawerRef.current);
+    if (!focusable.length) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  const handleResizeStart = (event) => {
+    if (!canResize) return;
+
+    const currentWidth = drawerRef.current?.offsetWidth || drawerWidth || DRAWER_MIN_WIDTH;
+    resizeStateRef.current = {
+      startX: event.clientX,
+      startWidth: currentWidth,
+    };
+    setIsResizing(true);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
+  const isComposerDisabled = isLoading || hasPendingRender;
 
   return (
-    <div className="ai-copilot-shell" data-open={isOpen}>
+    <div className="ai-copilot-shell" data-open={isOpen} data-resizing={isResizing}>
       <button
         type="button"
         aria-label="Close AI drawer backdrop"
@@ -445,110 +477,193 @@ const AskAIDrawer = memo(function AskAIDrawer({
         onClick={onClose}
       />
 
-      <aside className="ai-copilot-drawer" aria-hidden={!isOpen}>
-        <header className="border-b border-white/10 px-5 py-4">
-          <div className="mb-4 flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="rounded-2xl border border-cyan-400/25 bg-cyan-400/10 p-2.5 text-cyan-200">
-                <Bot size={18} />
+      <aside
+        ref={drawerRef}
+        className="ai-copilot-drawer"
+        aria-hidden={!isOpen}
+        aria-modal="true"
+        aria-labelledby="ai-copilot-title"
+        role="dialog"
+        onKeyDown={handleDrawerKeyDown}
+        style={
+          canResize && drawerWidth
+            ? { "--ai-copilot-width": `${drawerWidth}px` }
+            : undefined
+        }
+      >
+        {canResize && (
+          <button
+            type="button"
+            className="ai-copilot-resize-handle"
+            onPointerDown={handleResizeStart}
+            aria-label="Resize Ask AI drawer"
+          >
+            <GripVertical size={14} />
+          </button>
+        )}
+
+        <header className="ai-copilot-header">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[22px] border border-cyan-300/20 bg-cyan-400/10 text-cyan-100 shadow-[0_14px_30px_rgba(34,211,238,0.15)]">
+                <Bot size={20} />
               </span>
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">
-                  Analytics Copilot
-                </p>
-                <h2 className="mt-1 text-lg font-semibold text-white">Ask AI</h2>
-                <p className="text-sm text-slate-400">
-                  Context-aware questions routed through the existing AI gateway
-                </p>
+
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="ai-copilot-chip ai-copilot-chip-primary">
+                    <Sparkles size={13} />
+                    Analytics Copilot
+                  </span>
+                  <span className="ai-copilot-chip">
+                    {getContextHealth(normalizedContext) ? "Context ready" : "Awaiting data"}
+                  </span>
+                </div>
+
+                <h2
+                  id="ai-copilot-title"
+                  className="mt-3 text-[1.35rem] font-semibold tracking-tight text-white"
+                >
+                  Ask AI
+                </h2>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-white/10 bg-white/5 p-2 text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
-            >
-              <X size={16} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={resetConversation}
+                className="ai-copilot-icon-button"
+              >
+                <RefreshCw size={15} />
+                <span className="hidden sm:inline">New chat</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="ai-copilot-icon-button"
+                aria-label="Close Ask AI"
+              >
+                <X size={16} />
+              </button>
+            </div>
           </div>
 
-          <div className="ai-copilot-card flex flex-wrap items-center gap-2">
-            <span
-              className={`rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium ${CONTEXT_META[normalizedContext.activeContext]?.accent || "text-cyan-200"}`}
-            >
-              {normalizedContext.label}
-            </span>
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
-              {normalizedContext.filters?.groupBy || "day"} view
-            </span>
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
-              {normalizedContext.filters?.compareMode ? "Compare on" : "Compare off"}
-            </span>
-          </div>
+          <ContextStrip
+            context={normalizedContext}
+            expanded={isContextExpanded}
+            onToggle={() => setIsContextExpanded((previous) => !previous)}
+          />
         </header>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5">
-          <div className="space-y-4">
-            {messages.length === 0 && (
-              <SuggestionsPanel
-                contextKey={normalizedContext.activeContext}
-                onPickSuggestion={handleSuggestionPick}
-              />
-            )}
+        <div className="relative flex-1 overflow-hidden">
+          <div
+            className={`ai-copilot-scroll-shadow ai-copilot-scroll-shadow-top ${scrollState.canScrollUp ? "is-visible" : ""}`}
+          />
+          <div
+            className={`ai-copilot-scroll-shadow ai-copilot-scroll-shadow-bottom ${scrollState.canScrollDown ? "is-visible" : ""}`}
+          />
 
-            {messages.map((message) => (
-              <article
-                key={message.id}
-                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                {message.role === "user" ? (
-                  <div className="max-w-[86%] rounded-[24px] rounded-br-md border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-50">
-                    {message.text}
-                  </div>
-                ) : (
-                  <div className="max-w-[92%] space-y-3">
-                    <div className="flex items-center gap-2 px-1">
-                      <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 p-1.5 text-cyan-200">
-                        <Bot size={14} />
-                      </span>
-                      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                        AI response
-                      </p>
-                    </div>
+          <div
+            ref={scrollRef}
+            onScroll={syncScrollState}
+            className="ai-copilot-scroll-area"
+          >
+            <div className="space-y-5 px-4 py-5 sm:px-5 lg:px-6">
+              {messages.length === 0 && (
+                <EmptyState
+                  context={normalizedContext}
+                  onPickSuggestion={handleSuggestionPick}
+                />
+              )}
 
-                    <RichAIResponse response={message.response} />
+              {messages.map((message) => {
+                const isPinned = pinnedInsightIds?.has(message.requestId);
 
-                    {!message.isError && (
-                      <div className="flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onPinInsight?.({
-                              id: message.requestId,
-                              intent: "nlq",
-                              title: trimQuestion(message.question),
-                              payload: message.requestPayload,
-                            })
-                          }
-                          className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-xs font-medium text-cyan-100 transition-colors hover:bg-cyan-400/15"
-                        >
-                          <Pin size={13} />
-                          Pin Insight
-                        </button>
+                return (
+                  <article
+                    key={message.id}
+                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    {message.role === "user" ? (
+                      <div className="max-w-[88%] rounded-[28px] rounded-br-lg border border-cyan-300/18 bg-gradient-to-br from-cyan-400/[0.16] via-sky-500/[0.08] to-indigo-500/[0.14] px-4 py-3.5 text-sm leading-6 text-cyan-50 shadow-[0_18px_32px_rgba(14,165,233,0.16)]">
+                        <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-cyan-100/70">
+                          <MessageCircle size={12} />
+                          You
+                        </div>
+                        <p>{message.text}</p>
+                      </div>
+                    ) : (
+                      <div className="max-w-[96%] space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-cyan-300/18 bg-cyan-400/[0.10] text-cyan-100">
+                              <Bot size={15} />
+                            </span>
+                            <div>
+                              <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+                                AI response
+                              </p>
+                            </div>
+                          </div>
+
+                          {!message.isError && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onPinInsight?.({
+                                  id: message.requestId,
+                                  intent: "analytics_copilot",
+                                  title: trimQuestion(message.question),
+                                  payload: message.requestPayload,
+                                })
+                              }
+                              className={`ai-copilot-pin-button ${isPinned ? "ai-copilot-pin-button-active" : ""}`}
+                            >
+                              {isPinned ? <PinOff size={13} /> : <Pin size={13} />}
+                              {isPinned ? "Unpin" : "Pin"}
+                            </button>
+                          )}
+                        </div>
+
+                        {message.isError ? (
+                          <section className="ai-copilot-card ai-copilot-error-card">
+                            <p className="text-sm font-semibold text-rose-100">
+                              Ask AI could not finish that request
+                            </p>
+                            <p className="mt-2 text-sm leading-6 text-rose-100/85">
+                              {message.response?.payload?.text ||
+                                "Something went wrong while generating the answer."}
+                            </p>
+                          </section>
+                        ) : (
+                          <CopilotResponseBlocks
+                            payload={message.response?.payload}
+                            followUpOptions={contextMeta.suggestions}
+                            currentQuestion={message.question}
+                            onFollowUp={handleFollowUp}
+                            isBusy={isComposerDisabled}
+                          />
+                        )}
                       </div>
                     )}
-                  </div>
-                )}
-              </article>
-            ))}
+                  </article>
+                );
+              })}
 
-            {showTypingState && <TypingIndicator />}
+              {showTypingState && (
+                <TypingIndicator stepText={THINKING_STEPS[thinkingStepIndex]} />
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="border-t border-white/10 px-5 py-4">
-          <div className="rounded-[28px] border border-white/10 bg-slate-900/90 p-2 shadow-[0_24px_60px_rgba(2,6,23,0.32)]">
-            <div className="flex items-end gap-2">
+        <form onSubmit={handleSubmit} className="ai-copilot-composer">
+          <div className="ai-copilot-composer-card">
+            <div className="flex items-end gap-3">
               <textarea
                 ref={textareaRef}
                 value={draft}
@@ -556,14 +671,46 @@ const AskAIDrawer = memo(function AskAIDrawer({
                 onKeyDown={handleInputKeyDown}
                 rows={1}
                 placeholder={`Ask about ${normalizedContext.label.toLowerCase()}...`}
-                className="max-h-32 min-h-[54px] flex-1 resize-none bg-transparent px-3 py-3 text-sm text-slate-100 outline-none placeholder:text-slate-500"
+                className="ai-copilot-textarea"
               />
+
               <button
                 type="submit"
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 via-sky-500 to-indigo-500 text-white shadow-[0_0_30px_rgba(34,211,238,0.35)] transition-transform duration-200 hover:scale-[1.03]"
+                disabled={isComposerDisabled || !draft.trim()}
+                className="ai-copilot-send-button"
               >
-                <Send size={16} />
+                {isComposerDisabled ? (
+                  <LoaderCircle size={17} className="animate-spin" />
+                ) : (
+                  <Send size={17} />
+                )}
               </button>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={resetConversation}
+                  className="ai-copilot-secondary-button"
+                  disabled={messages.length === 0 && !draft}
+                >
+                  Clear chat
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSuggestionPick(nextSuggestion)}
+                  className="ai-copilot-secondary-button"
+                >
+                  Use suggestion
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-slate-300">
+                  {nextSuggestion}
+                </span>
+              </div>
             </div>
           </div>
         </form>

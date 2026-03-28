@@ -8,6 +8,8 @@ import {
   fetchAnalyticsSeries,
   fetchAnalyticsSummary,
 } from "../Services/analyticsApi";
+import { useAI } from "../hooks/useAI";
+import AiSummaryCard from "./ai/AiSummaryCard";
 import AIInsightCard from "./ai/AIInsightCard";
 import AskAIDrawer from "./ai/AskAIDrawer";
 import FloatingAIButton from "./ai/FloatingAIButton";
@@ -70,31 +72,37 @@ const CONTEXT_LABELS = {
   category_chart: "Category chart",
 };
 
-const pickContextFromViewport = (sections) => {
-  if (typeof window === "undefined") return "revenue_chart";
+const PIN_STORAGE_PREFIX = "analytics-copilot-pins";
+const MAX_PINNED_INSIGHTS = 12;
 
-  const viewportFocusLine = window.innerHeight * 0.42;
-  let closestContext = "revenue_chart";
-  let closestDistance = Number.POSITIVE_INFINITY;
+const getPinStorageKey = () => {
+  if (typeof window === "undefined") {
+    return `${PIN_STORAGE_PREFIX}:anonymous`;
+  }
 
-  sections.forEach(({ key, element }) => {
-    if (!element) return;
+  const identity =
+    window.localStorage.getItem("userEmail") ||
+    window.localStorage.getItem("userName") ||
+    window.localStorage.getItem("role") ||
+    "anonymous";
 
-    const rect = element.getBoundingClientRect();
-    const sectionCenter = rect.top + rect.height / 2;
-    let distance = Math.abs(sectionCenter - viewportFocusLine);
+  return `${PIN_STORAGE_PREFIX}:${String(identity).trim().toLowerCase()}`;
+};
 
-    if (rect.top <= viewportFocusLine && rect.bottom >= viewportFocusLine) {
-      distance *= 0.2;
-    }
+const normalizePinnedInsight = (insight) => {
+  if (!insight || typeof insight !== "object") return null;
 
-    if (distance < closestDistance) {
-      closestDistance = distance;
-      closestContext = key;
-    }
-  });
+  const id = String(insight.id || "").trim();
+  const intent = String(insight.intent || "").trim();
 
-  return closestContext;
+  if (!id || !intent) return null;
+
+  return {
+    id,
+    intent,
+    title: String(insight.title || "Pinned AI insight").trim(),
+    payload: insight.payload || null,
+  };
 };
 
 const calculateGrowth = (current, previous) => {
@@ -248,7 +256,9 @@ const Dashboard = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [drawerContextKey, setDrawerContextKey] = useState("revenue_chart");
   const [pinnedInsights, setPinnedInsights] = useState([]);
+  const [pinsHydrated, setPinsHydrated] = useState(false);
   const [activeTrendMetric, setActiveTrendMetric] = useState("revenue");
+  const [isSummaryRequested, setIsSummaryRequested] = useState(false);
 
   const [loading, setLoading] = useState({
     summary: false,
@@ -265,6 +275,41 @@ const Dashboard = () => {
     insights: "",
     options: "",
   });
+
+  const pinStorageKey = useMemo(() => getPinStorageKey(), []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const storedPins = window.localStorage.getItem(pinStorageKey);
+      if (!storedPins) {
+        setPinnedInsights([]);
+        return;
+      }
+
+      const parsedPins = JSON.parse(storedPins);
+      const normalizedPins = Array.isArray(parsedPins)
+        ? parsedPins
+            .map((item) => normalizePinnedInsight(item))
+            .filter(Boolean)
+            .slice(0, MAX_PINNED_INSIGHTS)
+        : [];
+
+      setPinnedInsights(normalizedPins);
+    } catch (error) {
+      console.error("Failed to restore pinned copilot insights", error);
+      setPinnedInsights([]);
+    } finally {
+      setPinsHydrated(true);
+    }
+  }, [pinStorageKey]);
+
+  useEffect(() => {
+    if (!pinsHydrated || typeof window === "undefined") return;
+
+    window.localStorage.setItem(pinStorageKey, JSON.stringify(pinnedInsights));
+  }, [pinStorageKey, pinnedInsights, pinsHydrated]);
 
   useEffect(() => {
     if (!isHydrated) return undefined;
@@ -556,7 +601,99 @@ const Dashboard = () => {
   const activeTrendMetricMeta =
     TREND_METRIC_META[activeTrendMetric] || TREND_METRIC_META.revenue;
 
+  const aiSummaryPayload = useMemo(() => {
+    if (!isHydrated) return null;
+
+    return {
+      question:
+        "Provide a concise markdown summary of performance, risks, and next best actions based on this dashboard context.",
+      data: aiTrendSeries.slice(-14),
+      context: {
+        outputStyle: "founder_summary",
+        outputStyleVersion: "growth_analyst_v5",
+        filters: aiFilterContext,
+        summary: {
+          totalRevenue: summary?.totalRevenue || 0,
+          totalOrders: summary?.totalOrders || 0,
+        },
+        topCategories: topCategoryContext,
+        topRegions: topRegionContext,
+        activeMetric: activeTrendMetric,
+      },
+    };
+  }, [
+    activeTrendMetric,
+    aiFilterContext,
+    aiTrendSeries,
+    isHydrated,
+    summary,
+    topCategoryContext,
+    topRegionContext,
+  ]);
+
+  const summaryRequestPayload = isSummaryRequested ? aiSummaryPayload : null;
+
+  const {
+    data: aiSummaryResponse,
+    isLoading: aiSummaryLoading,
+    error: aiSummaryError,
+    refetch: refetchAiSummary,
+  } = useAI("nlq", summaryRequestPayload);
+
+  const handleRefreshSummary = () => {
+    if (!isSummaryRequested) {
+      setIsSummaryRequested(true);
+      return;
+    }
+
+    refetchAiSummary();
+  };
+
+  const aiSummaryText = useMemo(() => {
+    if (aiSummaryError) {
+      return `### Summary unavailable\n\n${aiSummaryError}`;
+    }
+
+    const responseText = aiSummaryResponse?.payload?.text;
+    if (typeof responseText === "string" && responseText.trim()) {
+      return responseText;
+    }
+
+    if (insights?.growthDescription || insights?.recommendation) {
+      return [
+        "### Performance Snapshot",
+        insights.growthDescription || "No growth insight available.",
+        "",
+        "### Risk & Recommendation",
+        insights.riskDescription || "No risk signal available.",
+        "",
+        `**Next action:** ${insights.recommendation || "No recommendation available."}`,
+      ].join("\n");
+    }
+
+    return "No summary available yet.";
+  }, [aiSummaryError, aiSummaryResponse, insights]);
+
   const drawerContext = useMemo(() => {
+    const fullDashboardData = {
+      revenueSeries: aiTrendSeries,
+      ordersSeries: trendChartData.map((row) => ({
+        period: row.period,
+        currentOrders: row.currentOrders ?? 0,
+        currentRevenue: row.currentRevenue ?? 0,
+      })),
+      categorySeries: topCategoryContext.map((row) => ({
+        category: row.category,
+        revenue: row.revenue ?? 0,
+        orders: row.orders ?? 0,
+      })),
+      regionSeries: topRegionContext.map((row) => ({
+        region: row.region,
+        revenue: row.revenue ?? 0,
+        orders: row.orders ?? 0,
+      })),
+    };
+
     const sharedContext = {
       filters: aiFilterContext,
       summary: {
@@ -565,6 +702,7 @@ const Dashboard = () => {
       },
       topCategories: topCategoryContext,
       topRegions: topRegionContext,
+      dashboardData: fullDashboardData,
     };
 
     if (drawerContextKey === "orders_chart") {
@@ -576,6 +714,7 @@ const Dashboard = () => {
           period: row.period,
           currentValue: row.currentOrders ?? 0,
           currentOrders: row.currentOrders ?? 0,
+          currentRevenue: row.currentRevenue ?? 0,
         })),
       };
     }
@@ -598,7 +737,11 @@ const Dashboard = () => {
       ...sharedContext,
       activeContext: "revenue_chart",
       label: CONTEXT_LABELS.revenue_chart,
-      data: aiTrendSeries,
+      data: aiTrendSeries.map((row) => ({
+        ...row,
+        currentOrders: row.currentOrders ?? 0,
+        currentRevenue: row.currentRevenue ?? row.currentValue ?? 0,
+      })),
     };
   }, [
     aiFilterContext,
@@ -611,22 +754,37 @@ const Dashboard = () => {
   ]);
 
   const openAIDrawer = () => {
-    const nextContext = pickContextFromViewport([
-      { key: "orders_chart", element: kpiSectionRef.current },
-      { key: "revenue_chart", element: revenueSectionRef.current },
-      { key: "category_chart", element: categorySectionRef.current },
-    ]);
+    // Deterministic anchor: use selected trend metric instead of viewport heuristics.
+    const nextContext =
+      activeTrendMetric === "orders" ? "orders_chart" : "revenue_chart";
 
     setDrawerContextKey(nextContext);
     setIsDrawerOpen(true);
   };
 
   const handlePinInsight = (insight) => {
+    const normalizedInsight = normalizePinnedInsight(insight);
+    if (!normalizedInsight) return;
+
     setPinnedInsights((previous) => {
-      if (previous.some((item) => item.id === insight.id)) return previous;
-      return [insight, ...previous];
+      if (previous.some((item) => item.id === normalizedInsight.id)) {
+        return previous.filter((item) => item.id !== normalizedInsight.id);
+      }
+
+      return [normalizedInsight, ...previous].slice(0, MAX_PINNED_INSIGHTS);
     });
   };
+
+  const handleRemovePinnedInsight = (insightId) => {
+    setPinnedInsights((previous) =>
+      previous.filter((item) => item.id !== insightId),
+    );
+  };
+
+  const pinnedInsightIds = useMemo(
+    () => new Set(pinnedInsights.map((item) => item.id)),
+    [pinnedInsights],
+  );
 
   return (
     <div className="min-h-screen bg-fixed bg-[radial-gradient(circle_at_15%_20%,rgba(34,211,238,0.12),transparent_30%),radial-gradient(circle_at_85%_10%,rgba(99,102,241,0.14),transparent_32%),linear-gradient(135deg,#020617_0%,#0b1220_45%,#111827_100%)] p-4 text-slate-100 sm:p-6 lg:p-8">
@@ -673,6 +831,14 @@ const Dashboard = () => {
                 compareMode={filters.compareMode}
               />
             </div>
+
+            <section className="my-6">
+              <AiSummaryCard
+                summary={aiSummaryText}
+                loading={aiSummaryLoading}
+                onRefresh={handleRefreshSummary}
+              />
+            </section>
 
             <div ref={revenueSectionRef} className="mb-6">
               <RevenueTrendChart
@@ -739,9 +905,11 @@ const Dashboard = () => {
                   {pinnedInsights.map((insight) => (
                     <AIInsightCard
                       key={insight.id}
+                      insightId={insight.id}
                       intent={insight.intent}
                       data={insight.payload}
                       title={insight.title}
+                      onRemove={handleRemovePinnedInsight}
                     />
                   ))}
                 </div>
@@ -756,6 +924,7 @@ const Dashboard = () => {
         onClose={() => setIsDrawerOpen(false)}
         context={drawerContext}
         onPinInsight={handlePinInsight}
+        pinnedInsightIds={pinnedInsightIds}
       />
       <FloatingAIButton isOpen={isDrawerOpen} onClick={openAIDrawer} />
     </div>

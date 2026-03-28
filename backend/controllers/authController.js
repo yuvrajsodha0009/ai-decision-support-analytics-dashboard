@@ -1,5 +1,7 @@
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
+const axios = require("axios");
 const User = require("../models/User");
 const logActivity = require("../utils/logActivity");
 const {
@@ -11,6 +13,191 @@ const {
 } = require("../utils/roles");
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const OTP_TTL_MINUTES = Number(process.env.PASSWORD_RESET_OTP_TTL_MINUTES || 10);
+const OTP_RESEND_COOLDOWN_SECONDS = Number(
+  process.env.PASSWORD_RESET_OTP_RESEND_COOLDOWN_SECONDS || 60,
+);
+const OTP_EMAIL_MAX_RETRIES = Number(process.env.OTP_EMAIL_MAX_RETRIES || 2);
+const OTP_EMAIL_PROVIDER = String(process.env.OTP_EMAIL_PROVIDER || "auto").toLowerCase();
+
+const generateOtpCode = () => String(Math.floor(100000 + Math.random() * 900000));
+
+const hashOtp = (otp) =>
+  crypto
+    .createHash("sha256")
+    .update(String(otp).trim())
+    .digest("hex");
+
+const createOtpEmailText = ({ otp, ttlMinutes }) => `Your password reset OTP is: ${otp}\n\nThis code will expire in ${ttlMinutes} minutes.\nIf you did not request this, please ignore this email.`;
+
+const createOtpEmailHtml = ({ otp, ttlMinutes }) => `
+  <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0f172a;max-width:560px">
+    <h2 style="margin:0 0 12px;color:#0f172a;">Password Reset OTP</h2>
+    <p style="margin:0 0 12px;">Use the OTP below to reset your password:</p>
+    <div style="display:inline-block;padding:10px 16px;border-radius:8px;background:#0f172a;color:#22d3ee;font-size:22px;letter-spacing:2px;font-weight:700;">
+      ${otp}
+    </div>
+    <p style="margin:12px 0 0;">This code expires in <strong>${ttlMinutes} minutes</strong>.</p>
+    <p style="margin:8px 0 0;color:#475569;">If you did not request this, you can ignore this message.</p>
+  </div>
+`;
+
+const isSmtpConfigured = () => {
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.SMTP_FROM || user;
+  return Boolean(host && user && pass && from);
+};
+
+const isResendConfigured = () =>
+  Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM);
+
+const isBrevoConfigured = () =>
+  Boolean(process.env.BREVO_API_KEY && process.env.BREVO_FROM);
+
+const sendWithSmtp = async ({ email, otp }) => {
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT || 587);
+  const secure = String(process.env.SMTP_SECURE || "false").toLowerCase() === "true";
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.SMTP_FROM || user;
+
+  if (!host || !user || !pass || !from) {
+    throw new Error("SMTP_NOT_CONFIGURED");
+  }
+
+  // eslint-disable-next-line global-require
+  const nodemailer = require("nodemailer");
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+    pool: true,
+    maxConnections: 3,
+    maxMessages: 100,
+  });
+
+  if (String(process.env.SMTP_SKIP_VERIFY || "false").toLowerCase() !== "true") {
+    await transporter.verify();
+  }
+
+  await transporter.sendMail({
+    from,
+    to: email,
+    subject: "Your OTP for password reset",
+    text: createOtpEmailText({ otp, ttlMinutes: OTP_TTL_MINUTES }),
+    html: createOtpEmailHtml({ otp, ttlMinutes: OTP_TTL_MINUTES }),
+    headers: {
+      "X-Auto-Response-Suppress": "All",
+    },
+  });
+
+  return { delivered: true, provider: "smtp" };
+};
+
+const sendWithResend = async ({ email, otp }) => {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM;
+  if (!apiKey || !from) throw new Error("RESEND_NOT_CONFIGURED");
+
+  await axios.post(
+    "https://api.resend.com/emails",
+    {
+      from,
+      to: [email],
+      subject: "Your OTP for password reset",
+      text: createOtpEmailText({ otp, ttlMinutes: OTP_TTL_MINUTES }),
+      html: createOtpEmailHtml({ otp, ttlMinutes: OTP_TTL_MINUTES }),
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      timeout: 10000,
+    },
+  );
+
+  return { delivered: true, provider: "resend" };
+};
+
+const sendWithBrevo = async ({ email, otp }) => {
+  const apiKey = process.env.BREVO_API_KEY;
+  const from = process.env.BREVO_FROM;
+  if (!apiKey || !from) throw new Error("BREVO_NOT_CONFIGURED");
+
+  await axios.post(
+    "https://api.brevo.com/v3/smtp/email",
+    {
+      sender: { email: from },
+      to: [{ email }],
+      subject: "Your OTP for password reset",
+      textContent: createOtpEmailText({ otp, ttlMinutes: OTP_TTL_MINUTES }),
+      htmlContent: createOtpEmailHtml({ otp, ttlMinutes: OTP_TTL_MINUTES }),
+    },
+    {
+      headers: {
+        "api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      timeout: 10000,
+    },
+  );
+
+  return { delivered: true, provider: "brevo" };
+};
+
+const getProviderOrder = () => {
+  const preferred = OTP_EMAIL_PROVIDER;
+  const all = ["smtp", "resend", "brevo"];
+  if (preferred === "auto") return all;
+  if (!all.includes(preferred)) return all;
+  return [preferred, ...all.filter((provider) => provider !== preferred)];
+};
+
+const sendOtpWithProvider = async ({ provider, email, otp }) => {
+  if (provider === "smtp") return sendWithSmtp({ email, otp });
+  if (provider === "resend") return sendWithResend({ email, otp });
+  if (provider === "brevo") return sendWithBrevo({ email, otp });
+  throw new Error(`UNKNOWN_PROVIDER_${provider}`);
+};
+
+const sendPasswordResetOtpEmail = async ({ email, otp }) => {
+  const providerOrder = getProviderOrder();
+  const errors = [];
+
+  for (const provider of providerOrder) {
+    const available =
+      (provider === "smtp" && isSmtpConfigured()) ||
+      (provider === "resend" && isResendConfigured()) ||
+      (provider === "brevo" && isBrevoConfigured());
+    if (!available) continue;
+
+    for (let attempt = 1; attempt <= OTP_EMAIL_MAX_RETRIES; attempt += 1) {
+      try {
+        const result = await sendOtpWithProvider({ provider, email, otp });
+        return {
+          delivered: Boolean(result?.delivered),
+          provider,
+          attempt,
+        };
+      } catch (error) {
+        errors.push(`${provider}:attempt-${attempt}:${error.message}`);
+      }
+    }
+  }
+
+  // Keep local/dev usable even without provider configuration.
+  console.log(`[auth] Password reset OTP for ${email}: ${otp}`);
+  return {
+    delivered: false,
+    provider: "console",
+    errors,
+  };
+};
 
 const toSafeUser = (userDoc) => {
   const user = userDoc?.toObject ? userDoc.toObject() : { ...userDoc };
@@ -564,12 +751,86 @@ exports.updateUserStatus = async (req, res) => {
   }
 };
 
+exports.requestPasswordResetOtp = async (req, res) => {
+  try {
+    const trimmedEmail = req.body?.email?.trim().toLowerCase();
+
+    if (!trimmedEmail) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    if (!emailRegex.test(trimmedEmail)) {
+      return res.status(400).json({ message: "Invalid email format" });
+    }
+
+    const user = await User.findOne({ email: trimmedEmail });
+
+    // Respond generically to avoid account enumeration.
+    if (!user) {
+      return res.json({ message: "If the account exists, OTP has been sent to your email" });
+    }
+
+    const lastRequestedAt = user.passwordResetOtpRequestedAt
+      ? new Date(user.passwordResetOtpRequestedAt).getTime()
+      : null;
+    if (lastRequestedAt) {
+      const elapsedSeconds = Math.floor((Date.now() - lastRequestedAt) / 1000);
+      if (elapsedSeconds < OTP_RESEND_COOLDOWN_SECONDS) {
+        return res.status(429).json({
+          message: `Please wait ${OTP_RESEND_COOLDOWN_SECONDS - elapsedSeconds}s before requesting a new OTP`,
+        });
+      }
+    }
+
+    const otp = generateOtpCode();
+    user.passwordResetOtpHash = hashOtp(otp);
+    user.passwordResetOtpExpiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
+    user.passwordResetOtpRequestedAt = new Date();
+    await user.save();
+
+    const mailResult = await sendPasswordResetOtpEmail({ email: user.email, otp });
+
+    await logActivity(
+      user.name || user.email,
+      "Password Reset OTP Requested",
+      "Auth",
+      `Password reset OTP requested for ${user.email}`,
+      "warning",
+      req,
+    );
+
+    if (!mailResult?.delivered && process.env.NODE_ENV !== "production") {
+      const debugProvider = mailResult?.provider || "console";
+      return res.json({
+        message:
+          `Email delivery is not configured or failed (provider: ${debugProvider}). OTP is available for development use.`,
+        devOtp: otp,
+      });
+    }
+
+    return res.json({ message: "If the account exists, OTP has been sent to your email" });
+  } catch (err) {
+    console.error("Request password reset OTP error:", err);
+    const hasAnyEmailProvider =
+      isSmtpConfigured() || isResendConfigured() || isBrevoConfigured();
+    if (!hasAnyEmailProvider && process.env.NODE_ENV !== "production") {
+      return res.status(500).json({
+        message:
+          "OTP was generated but no email provider is configured. Configure SMTP, Resend, or Brevo.",
+      });
+    }
+    return res.status(500).json({ message: "Failed to send OTP email" });
+  }
+};
+
 exports.resetPassword = async (req, res) => {
   try {
-    const { email, newPassword } = req.body;
+    const { email, newPassword, oldPassword, otp } = req.body;
 
     const trimmedEmail = email?.trim().toLowerCase();
     const trimmedPassword = newPassword?.trim();
+    const trimmedOldPassword = oldPassword?.trim();
+    const trimmedOtp = otp?.trim();
 
     if (!trimmedEmail || !trimmedPassword) {
       return res
@@ -592,14 +853,54 @@ exports.resetPassword = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    if (!trimmedOldPassword && !trimmedOtp) {
+      return res.status(400).json({
+        message: "Provide either old password or OTP to reset password",
+      });
+    }
+
+    let verified = false;
+    let verificationMethod = "";
+
+    if (trimmedOldPassword) {
+      const oldMatches = await bcrypt.compare(trimmedOldPassword, user.password);
+      if (!oldMatches) {
+        return res.status(400).json({ message: "Old password is incorrect" });
+      }
+      verified = true;
+      verificationMethod = "old-password";
+    }
+
+    if (!verified && trimmedOtp) {
+      if (!user.passwordResetOtpHash || !user.passwordResetOtpExpiresAt) {
+        return res.status(400).json({ message: "OTP has not been requested" });
+      }
+      if (new Date(user.passwordResetOtpExpiresAt).getTime() < Date.now()) {
+        return res.status(400).json({ message: "OTP has expired" });
+      }
+      const otpMatches = user.passwordResetOtpHash === hashOtp(trimmedOtp);
+      if (!otpMatches) {
+        return res.status(400).json({ message: "Invalid OTP" });
+      }
+      verified = true;
+      verificationMethod = "otp";
+    }
+
+    if (!verified) {
+      return res.status(400).json({ message: "Unable to verify password reset request" });
+    }
+
     user.password = await bcrypt.hash(trimmedPassword, 10);
+    user.passwordResetOtpHash = null;
+    user.passwordResetOtpExpiresAt = null;
+    user.passwordResetOtpRequestedAt = null;
     await user.save();
 
     await logActivity(
       user.name || trimmedEmail,
       "Password Reset",
       "Auth",
-      `Password reset for ${user.email}`,
+      `Password reset for ${user.email} via ${verificationMethod}`,
       "warning",
       req,
     );
