@@ -278,36 +278,43 @@ No required `.env` keys for local development by default. The dev server proxies
 ## Screenshots
 
 ### Login
+
 Secure authentication entry screen for role-based access.
 
 ![Login](./screenshots/login.png)
 
 ### Dashboard
+
 Main analytics overview with KPI cards and performance charts.
 
 ![Dashboard](./screenshots/dashboard.png)
 
 ### AI Summary
+
 AI-generated executive insights from selected filters and metrics.
 
 ![AI Summary](./screenshots/ai-summary.png)
 
 ### Ask AI
+
 Copilot-style assistant for natural language analytics queries.
 
 ![Ask AI](./screenshots/ask-ai.png)
 
 ### Category Page
+
 Category-wise performance analysis and trend comparison view.
 
 ![Category Page](./screenshots/category-page.png)
 
 ### Map Page
+
 Interactive geo analytics with drill-down from world to city.
 
 ![Map Page](./screenshots/map-page.png)
 
 ### Admin Panel User Management
+
 Admin console to manage users, roles, and account status.
 
 ![Admin Panel User Management](./screenshots/admin-user-management.png)
